@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 336" role="img" aria-label="Бот отвечает на вопрос одним шагом. Агент берёт цель, разбивает на шаги, доводит до результата – а ты проверяешь.">
+  <defs>
+    <marker id="ah-ink" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#0A0A0A"/>
+    </marker>
+    <marker id="ah-mut" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#b3b1aa"/>
+    </marker>
+  </defs>
+  <style>
+    .t{font-family:"Inter","Inter Tight",-apple-system,system-ui,Segoe UI,sans-serif}
+    .ink{fill:#0A0A0A}.mut{fill:#8a887f}.cap{fill:#9a988f}
+    .box{fill:#FFFFFF}
+  </style>
+  <!-- card -->
+  <rect x="1.5" y="1.5" width="917" height="333" rx="16" fill="#FBFBF8" stroke="#0A0A0A" stroke-width="2"/>
+  <text class="t ink" x="40" y="56" font-size="24" font-weight="700">Бот отвечает. Агент – делает.</text>
+
+  <!-- BOT lane (muted) -->
+  <text class="t mut" x="40" y="131" font-size="14" font-weight="700" letter-spacing="2">БОТ</text>
+  <rect class="box" x="120" y="104" width="150" height="48" rx="10" stroke="#c4c2ba" stroke-width="1.5"/>
+  <text class="t mut" x="195" y="133" font-size="16" text-anchor="middle">Вопрос</text>
+  <line x1="270" y1="128" x2="322" y2="128" stroke="#b3b1aa" stroke-width="1.5" marker-end="url(#ah-mut)"/>
+  <rect class="box" x="322" y="104" width="150" height="48" rx="10" stroke="#c4c2ba" stroke-width="1.5"/>
+  <text class="t mut" x="397" y="133" font-size="16" text-anchor="middle">Готовый ответ</text>
+  <text class="t cap" x="500" y="133" font-size="14.5">отвечает на вопрос – и всё; шаг в сторону – стоп</text>
+
+  <!-- AGENT lane (ink + one lime accent) -->
+  <text class="t ink" x="40" y="259" font-size="14" font-weight="700" letter-spacing="2">АГЕНТ</text>
+  <rect class="box" x="120" y="232" width="118" height="48" rx="10" stroke="#0A0A0A" stroke-width="1.7"/>
+  <text class="t ink" x="179" y="261" font-size="16" text-anchor="middle">Цель</text>
+  <line x1="238" y1="256" x2="276" y2="256" stroke="#0A0A0A" stroke-width="1.7" marker-end="url(#ah-ink)"/>
+  <rect class="box" x="276" y="232" width="178" height="48" rx="10" stroke="#0A0A0A" stroke-width="1.7"/>
+  <text class="t ink" x="365" y="261" font-size="15" text-anchor="middle">Разбивает на шаги</text>
+  <line x1="454" y1="256" x2="492" y2="256" stroke="#0A0A0A" stroke-width="1.7" marker-end="url(#ah-ink)"/>
+  <rect class="box" x="492" y="232" width="140" height="48" rx="10" stroke="#0A0A0A" stroke-width="1.7"/>
+  <text class="t ink" x="562" y="261" font-size="16" text-anchor="middle">Результат</text>
+  <line x1="632" y1="256" x2="670" y2="256" stroke="#0A0A0A" stroke-width="1.7" marker-end="url(#ah-ink)"/>
+  <!-- key node: lime square accent -->
+  <rect class="box" x="670" y="232" width="208" height="48" rx="10" stroke="#0A0A0A" stroke-width="1.7"/>
+  <rect x="686" y="252" width="9" height="9" fill="#D4FF00" stroke="#0A0A0A" stroke-width="1.3"/>
+  <text class="t ink" x="712" y="261" font-size="16" font-weight="600">Проверяешь ты</text>
+</svg>

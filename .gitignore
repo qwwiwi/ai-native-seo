@@ -1,0 +1,9 @@
+align.png
+/*.png
+/sticky-*.png
+/proof-*.png
+/align*.png
+site/covers/*.html
+
+# public repo: build output is generated, not tracked
+build/

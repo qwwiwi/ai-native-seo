@@ -1,0 +1,15 @@
+{
+  "name": "edgelab-portal-space",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "blog.edgelab.space — 1:1 React prototype (site/) prerendered to static, SEO-ready HTML (build/).",
+  "scripts": {
+    "lint": "node scripts/content-lint.mjs",
+    "build": "node scripts/prerender.mjs"
+  },
+  "comments": {
+    "prerender": "scripts/prerender.mjs uses Playwright + system Chrome to render the client-side React prototype to static HTML. It relies on the GLOBAL Playwright install at /opt/homebrew/lib/node_modules/playwright (no local node_modules needed). If running elsewhere, install Playwright: `npm i -g playwright` (or `npm i -D playwright`) and ensure Google Chrome is present (channel:'chrome'). python3 must be on PATH (used to serve site/ over local HTTP during the render).",
+    "output": "build/ — deployable static files. site/ stays the canonical 1:1 design; do not edit it."
+  }
+}

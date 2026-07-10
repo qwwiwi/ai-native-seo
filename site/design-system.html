@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>EdgeLab Space — Дизайн-система и карта страниц</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#FAF7F2; --text:#1c1c1f; --muted:#6b7280;
+    --hair:rgba(0,0,0,0.10); --card:rgba(0,0,0,0.035);
+    --ink:#0A0A0A; --lime:#D4FF00; --offwhite:#FBFBF8;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 40px 100px;}
+  /* header */
+  .ds-head{padding:64px 0 34px;border-bottom:1px solid var(--hair);}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:var(--muted);display:inline-flex;align-items:center;gap:9px;}
+  .eyebrow .d{width:9px;height:9px;background:var(--lime);outline:1px solid var(--ink);display:inline-block;}
+  h1{font-family:'Inter Tight',sans-serif;font-size:46px;font-weight:700;letter-spacing:-0.03em;line-height:1.05;margin:18px 0 12px;}
+  .lead{font-size:17px;line-height:1.55;color:var(--muted);max-width:64ch;margin:0;}
+  .logo{font-family:'Inter Tight',sans-serif;font-weight:600;font-size:21px;letter-spacing:-0.04em;display:inline-flex;align-items:baseline;margin-bottom:26px;}
+  .logo .sq{width:7px;height:7px;background:var(--lime);outline:.5px solid var(--ink);display:inline-block;margin:0 5px;align-self:baseline;position:relative;top:0px;}
+  /* section */
+  section{padding:48px 0 8px;border-bottom:1px solid var(--hair);}
+  h2{font-family:'Inter Tight',sans-serif;font-size:14px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink);margin:0 0 6px;display:flex;align-items:center;gap:10px;}
+  h2::before{content:'';width:10px;height:10px;background:var(--lime);outline:1px solid var(--ink);}
+  .sub{font-size:14px;color:var(--muted);margin:0 0 26px;}
+  h3{font-family:'Inter Tight',sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.01em;margin:30px 0 14px;}
+  /* color swatches */
+  .swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .sw{border:1px solid var(--hair);border-radius:12px;overflow:hidden;background:#fff;}
+  .sw .chip{height:84px;}
+  .sw .meta{padding:11px 13px;}
+  .sw .nm{font-weight:600;font-size:13.5px;}
+  .sw .hex{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .sw .role{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.4;}
+  /* type rows */
+  .type-row{display:flex;align-items:baseline;gap:22px;padding:16px 0;border-top:1px solid var(--hair);}
+  .type-row:first-of-type{border-top:none;}
+  .type-tag{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);width:160px;flex:none;}
+  .ff-inter{font-family:'Inter',sans-serif;}
+  .ff-tight{font-family:'Inter Tight',sans-serif;}
+  .ff-mono{font-family:'JetBrains Mono',monospace;}
+  /* token list */
+  .tok{display:grid;grid-template-columns:170px 1fr;gap:8px 18px;font-size:13.5px;}
+  .tok code{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--ink);}
+  .tok .v{color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12.5px;}
+  /* chips */
+  .pills{display:flex;flex-wrap:wrap;gap:9px;margin-top:6px;}
+  .pill{font-size:12.5px;border:1px solid var(--hair);border-radius:999px;padding:7px 13px;color:var(--text);}
+  .pill.lime{background:var(--lime);border-color:var(--ink);}
+  .pill.ink{background:var(--ink);color:#fff;}
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px;}
+  th,td{text-align:left;padding:12px 12px;border-bottom:1px solid var(--hair);vertical-align:top;}
+  th{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);font-weight:600;}
+  td code{font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--card);padding:2px 6px;border-radius:5px;white-space:nowrap;}
+  .tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.06em;text-transform:uppercase;padding:3px 8px;border-radius:5px;border:1px solid var(--hair);color:var(--muted);}
+  .tag.d{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .tag.m{background:var(--lime);color:var(--ink);border-color:var(--ink);}
+  .both{display:inline-flex;gap:5px;}
+  /* map cards */
+  .map{display:flex;flex-direction:column;gap:0;}
+  .note{background:var(--offwhite);border:1px solid var(--ink);border-radius:12px;padding:16px 18px;margin-top:18px;font-size:13.5px;line-height:1.55;}
+  .note b{font-weight:700;}
+  .note code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:5px;}
+  .comp-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px;}
+  .comp{border:1px solid var(--hair);border-radius:12px;padding:15px 17px;background:var(--card);}
+  .comp .cn{font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:700;color:var(--ink);}
+  .comp .cd{font-size:13px;color:var(--muted);line-height:1.5;margin-top:5px;}
+  .foot{padding-top:40px;font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:0.04em;}
+  a{color:var(--ink);text-decoration-color:var(--lime);text-underline-offset:2px;}
+  @media(max-width:720px){
+    .wrap{padding:0 20px 60px;}
+    h1{font-size:34px;}
+    .swatches{grid-template-columns:repeat(2,1fr);}
+    .comp-grid{grid-template-columns:1fr;}
+    .type-row{flex-direction:column;gap:6px;}
+    .type-tag{width:auto;}
+    .tok{grid-template-columns:1fr;}
+    table{font-size:12px;}
+    th,td{padding:9px 8px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="ds-head">
+    <div class="logo">edgelab<span class="sq"></span>space</div>
+    <div class="eyebrow">Design System · Page Map</div>
+    <h1>EdgeLab Space — дизайн-система и карта страниц</h1>
+    <p class="lead">Портал об AI-агентах (Claude Code, Hermes, Codex) от Даши Ешиева и канала «Записки AI-энтузиаста». Один общий стиль, один движок, все десктопные и мобильные страницы — в одном месте, чтобы ничего не потерять.</p>
+  </div>
+
+  <!-- ARCHITECTURE -->
+  <section>
+    <h2>Архитектура</h2>
+    <p class="sub">Все страницы — это тонкие HTML-обёртки над общим движком. Стиль и компоненты живут в двух файлах.</p>
+    <div class="comp-grid">
+      <div class="comp"><div class="cn">gf-styles.css</div><div class="cd">Единый стиль всего портала (≈670 строк). Источник — блок &lt;style&gt; в guides-funnel-explore.html; пересобирается из него. Подключается во все страницы.</div></div>
+      <div class="comp"><div class="cn">gf-app.jsx</div><div class="cd">Все React-компоненты + роутинг. Каждая страница задаёт <code style="font-family:inherit">window.__GF_VIEW</code> (+ <code style="font-family:inherit">__GF_CAT</code>), и движок рендерит нужный экран.</div></div>
+      <div class="comp"><div class="cn">image-slot.js</div><div class="cd">Заполняемые слоты под баннеры/обложки. Пользователь перетаскивает картинку — она сохраняется. Используется на Главной, в статьях и «О проекте».</div></div>
+      <div class="comp"><div class="cn">guides-funnel-explore.html</div><div class="cd">Холст со всеми вариантами (десктоп / мобайл / светлая / тёмная). Рабочий «исходник» стиля и витрина опций.</div></div>
+    </div>
+    <div class="note"><b>Как устроен роутинг.</b> Десктоп-страницы — отдельные файлы (<code>index.html</code>, <code>claude-code.html</code>…). Мобильная версия — одна оболочка <code>mobile.html</code>, экран выбирается по якорю: <code>mobile.html#home</code>, <code>#library</code>, <code>#claude</code>, <code>#hermes</code>, <code>#codex</code>, <code>#about</code>. Меню в мобильной версии ведёт именно на мобильные экраны.</div>
+  </section>
+
+  <!-- LOGO STANDARD -->
+  <section>
+    <h2>Логотип — стандарт написания</h2>
+    <p class="sub">Вордмарк «edgelab·space»: два слова строчными и lime-квадрат-маркер между ними. Это единственный правильный способ.</p>
+    <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:40px;padding:30px 0 10px;">
+      <div class="logo" style="font-size:40px;margin:0;">edgelab<span class="sq" style="width:11px;height:11px;margin:0 9px 0 2px;"></span>space</div>
+      <div class="logo" style="font-size:21px;margin:0;">edgelab<span class="sq"></span>space</div>
+      <div class="logo" style="font-size:15px;margin:0;">edgelab<span class="sq" style="width:5px;height:5px;margin:0 4px 0 1px;"></span>space</div>
+    </div>
+    <h3>Правила</h3>
+    <div class="tok">
+      <code>написание</code><span class="v">edgelab·space — оба слова строчными, без пробела «edgelab space»</span>
+      <code>шрифт</code><span class="v">Inter Tight · 600 · letter-spacing −0.04em</span>
+      <code>маркер</code><span class="v">lime-квадрат #D4FF00, обводка ink, на базовой линии букв</span>
+      <code>цвет текста</code><span class="v">наследует контекст: ink на светлом, #f4f4f0 на тёмном</span>
+      <code>квадрат на тёмном</code><span class="v">обводка rgba(255,255,255,.55)</span>
+    </div>
+    <div class="comp-grid" style="margin-top:22px">
+      <div class="comp" style="border-color:var(--ink)">
+        <div class="cn" style="color:var(--ink)">✓ Верно</div>
+        <div class="cd">edgelab<span style="display:inline-block;width:6px;height:6px;background:var(--lime);outline:.5px solid var(--ink);margin:0 4px;position:relative;top:1px"></span>space — строчные, квадрат-разделитель, одно целое.</div>
+      </div>
+      <div class="comp">
+        <div class="cn" style="color:var(--muted)">✕ Неверно</div>
+        <div class="cd">EdgeLab Space с заглавных · «edgelab space» с пробелом · смена цвета квадрата · растягивание трекинга.</div>
+      </div>
+    </div>
+    <div class="note"><b>В вёрстке:</b> компонент <code>&lt;Logo /&gt;</code> в gf-app.jsx — <code>&lt;span class="el-logo"&gt;&lt;span class="a"&gt;edgelab&lt;/span&gt;&lt;span class="sq"&gt;&lt;/span&gt;&lt;span class="b"&gt;space&lt;/span&gt;&lt;/span&gt;</code>. Используйте только его, не набирайте текстом.</div>
+  </section>
+
+  <!-- COLORS -->
+  <section>
+    <h2>Цвета</h2>
+    <p class="sub">Тёплый бумажный фон, угольный ink и фирменный lime-акцент. Акцент появляется точечно — там, где продаём или выделяем.</p>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#FAF7F2;border-bottom:1px solid var(--hair)"></div><div class="meta"><div class="nm">Bg / paper</div><div class="hex">#FAF7F2</div><div class="role">Фон светлой темы</div></div></div>
+      <div class="sw"><div class="chip" style="background:#0A0A0A"></div><div class="meta"><div class="nm">Ink</div><div class="hex">#0A0A0A</div><div class="role">Тёмные блоки, обводки, текст-кнопки</div></div></div>
+      <div class="sw"><div class="chip" style="background:#D4FF00"></div><div class="meta"><div class="nm">Lime — акцент</div><div class="hex">#D4FF00</div><div class="role">Кнопки, квадрат-маркер, CTA</div></div></div>
+      <div class="sw"><div class="chip" style="background:#FBFBF8;border-bottom:1px solid var(--hair)"></div><div class="meta"><div class="nm">Off-white</div><div class="hex">#FBFBF8</div><div class="role">Карточки, оффер-блоки</div></div></div>
+      <div class="sw"><div class="chip" style="background:#1c1c1f"></div><div class="meta"><div class="nm">Text</div><div class="hex">#1c1c1f</div><div class="role">Основной текст (светлая)</div></div></div>
+      <div class="sw"><div class="chip" style="background:#6b7280"></div><div class="meta"><div class="nm">Muted</div><div class="hex">#6b7280</div><div class="role">Вторичный текст, подписи</div></div></div>
+      <div class="sw"><div class="chip" style="background:#141416"></div><div class="meta"><div class="nm">Bg dark</div><div class="hex">#141416</div><div class="role">Фон тёмной темы</div></div></div>
+      <div class="sw"><div class="chip" style="background:#f4f4f5"></div><div class="meta"><div class="nm">Text dark</div><div class="hex">#f4f4f5</div><div class="role">Текст в тёмной теме</div></div></div>
+    </div>
+    <h3>Токены (CSS-переменные)</h3>
+    <div class="tok">
+      <code>--bg</code><span class="v">#FAF7F2 · dark #141416</span>
+      <code>--text</code><span class="v">#1c1c1f · dark #f4f4f5</span>
+      <code>--muted</code><span class="v">#6b7280 · dark #9ca3af</span>
+      <code>--ink</code><span class="v">#0A0A0A</span>
+      <code>--lime</code><span class="v">#D4FF00</span>
+      <code>--offwhite</code><span class="v">#FBFBF8</span>
+      <code>--hair</code><span class="v">rgba(0,0,0,.08) · dark rgba(255,255,255,.10)</span>
+      <code>--card-border</code><span class="v">rgba(0,0,0,.10) · dark rgba(255,255,255,.12)</span>
+    </div>
+  </section>
+
+  <!-- TYPE -->
+  <section>
+    <h2>Типографика</h2>
+    <p class="sub">Три гарнитуры: Inter — текст, Inter Tight — заголовки, JetBrains Mono — служебные подписи, эйбрау и цифры.</p>
+    <div class="type-row"><div class="type-tag">Inter Tight · 700<br>заголовки</div><div class="ff-tight" style="font-size:30px;font-weight:700;letter-spacing:-0.02em;">Статьи и гайды по AI</div></div>
+    <div class="type-row"><div class="type-tag">Inter · 400–600<br>основной текст</div><div class="ff-inter" style="font-size:17px;">Живой человеческий текст — истории, а не сухие инструкции.</div></div>
+    <div class="type-row"><div class="type-tag">JetBrains Mono · 600<br>эйбрау / подписи</div><div class="ff-mono" style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;">EDGELAB SPACE · 12 ИЮНЯ 2026</div></div>
+  </section>
+
+  <!-- COMPONENTS -->
+  <section>
+    <h2>Компоненты</h2>
+    <p class="sub">Все определены в gf-app.jsx и переиспользуются на десктопе и в мобайле.</p>
+    <div class="pills">
+      <span class="pill lime">Кнопка · lime pill</span>
+      <span class="pill ink">Кнопка · ink</span>
+      <span class="pill">Тег / чип</span>
+      <span class="pill"><span style="display:inline-block;width:7px;height:7px;background:var(--lime);outline:1px solid var(--ink);margin-right:7px;vertical-align:middle"></span>lime-маркер</span>
+    </div>
+    <div class="comp-grid" style="margin-top:20px">
+      <div class="comp"><div class="cn">Header / NavLinks</div><div class="cd">Лого + меню (Главная · Все гайды · Claude Code · Hermes · Codex · О проекте) + переключатель темы + «Вступить в сообщество».</div></div>
+      <div class="comp"><div class="cn">PortalHead + MobileMenuPanel</div><div class="cd">Мобильная шапка: бургер открывает выезжающую слева шторку с теми же разделами.</div></div>
+      <div class="comp"><div class="cn">Home</div><div class="cd">Геро «AI ПОРТАЛ» + разделы «Статьи» и «Гайды». Баннеры — заполняемые слоты.</div></div>
+      <div class="comp"><div class="cn">Catalog + CommandPalette</div><div class="cd">Библиотека на 500 гайдов: фасеты, уровни, пагинация и поиск ⌘K с живой фильтрацией.</div></div>
+      <div class="comp"><div class="cn">GuidePage + Content (ARTICLES)</div><div class="cd">Статья-история: TL;DR, бейдж «протестировано», блок-схема, видео, чек-лист, FAQ, changelog, CTA. Данные — объект ARTICLES (claude/hermes/codex).</div></div>
+      <div class="comp"><div class="cn">AboutPage</div><div class="cd">О проекте: автор, что внутри сообщества, CTA и канал «Записки AI-энтузиаста».</div></div>
+      <div class="comp"><div class="cn">MobileArticle / MobileC</div><div class="cd">Статья в телефонной рамке; «Скопировать для агента» при скролле ниже 1500px.</div></div>
+      <div class="comp"><div class="cn">Footer</div><div class="cd">Брендинг, разделы, контакты, канал, реквизиты ИП. Перестроен под мобайл.</div></div>
+    </div>
+  </section>
+
+  <!-- LOGOS -->
+  <section>
+    <h2>Логотипы харнессов</h2>
+    <p class="sub">Иконки продуктов, которые используются в разделах и карточках статей. Источник — предоставлены пользователем (загружены в проект).</p>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#fff;display:flex;align-items:center;justify-content:center;height:120px"><img src="images/claudecode.png" alt="Claude Code" style="width:72px;height:72px;object-fit:contain" /></div><div class="meta"><div class="nm">Claude Code</div><div class="hex">images/claudecode.png</div><div class="role">Источник: загружен пользователем</div></div></div>
+      <div class="sw"><div class="chip" style="background:#fff;display:flex;align-items:center;justify-content:center;height:120px"><img src="images/codex.png" alt="Codex" style="width:72px;height:72px;object-fit:contain" /></div><div class="meta"><div class="nm">Codex</div><div class="hex">images/codex.png</div><div class="role">Источник: загружен пользователем</div></div></div>
+      <div class="sw"><div class="chip" style="background:#fff;display:flex;align-items:center;justify-content:center;height:120px"><img src="images/hermes.png" alt="Hermes" style="width:72px;height:72px;object-fit:contain" /></div><div class="meta"><div class="nm">Hermes</div><div class="hex">images/hermes.png</div><div class="role">Источник: загружен пользователем</div></div></div>
+    </div>
+    <div class="note"><b>Использование.</b> Файлы лежат в <code>images/</code>. Подставляются в карточки разделов и геро статей Claude Code, Codex и Hermes как иконки 1:1.</div>
+  </section>
+
+  <!-- PAGE MAP -->
+  <section>
+    <h2>Карта страниц — десктоп</h2>
+    <p class="sub">Отдельные HTML-файлы в корне. Открываются напрямую; меню связывает их между собой.</p>
+    <table>
+      <thead><tr><th>Файл</th><th>Что это</th><th>Рендер (__GF_VIEW)</th><th>Тема</th></tr></thead>
+      <tbody>
+        <tr><td><code>index.html</code></td><td>Главная — лента: геро «AI ПОРТАЛ», Статьи, Гайды</td><td><code>home</code></td><td><span class="both"><span class="tag">light</span><span class="tag">dark</span></span></td></tr>
+        <tr><td><code>library.html</code></td><td>Все гайды — библиотека 500 + поиск ⌘K</td><td><code>library</code></td><td><span class="both"><span class="tag">light</span><span class="tag">dark</span></span></td></tr>
+        <tr><td><code>claude-code.html</code></td><td>Статья «Как я собрал окружение за вечер»</td><td><code>category</code> · <code>claude</code></td><td><span class="both"><span class="tag">light</span><span class="tag">dark</span></span></td></tr>
+        <tr><td><code>hermes.html</code></td><td>Статья «Hermes стал моим аналитиком»</td><td><code>category</code> · <code>hermes</code></td><td><span class="both"><span class="tag">light</span><span class="tag">dark</span></span></td></tr>
+        <tr><td><code>codex.html</code></td><td>Статья «Codex на практике»</td><td><code>category</code> · <code>codex</code></td><td><span class="both"><span class="tag">light</span><span class="tag">dark</span></span></td></tr>
+        <tr><td><code>about.html</code></td><td>О проекте — автор, сообщество, канал</td><td><code>about</code></td><td><span class="both"><span class="tag">light</span><span class="tag">dark</span></span></td></tr>
+        <tr><td><code>guide.html</code></td><td>Статья по умолчанию (= Claude Code), полный ридер</td><td><code>variantC</code></td><td><span class="both"><span class="tag">light</span><span class="tag">dark</span></span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Карта страниц — мобайл</h2>
+    <p class="sub">Одна оболочка <code style="font-family:'JetBrains Mono',monospace">mobile.html</code>, экран выбирается якорем. Переходы из бургер-меню остаются в мобильной версии.</p>
+    <table>
+      <thead><tr><th>Адрес</th><th>Экран</th><th>Компонент</th></tr></thead>
+      <tbody>
+        <tr><td><code>mobile.html#home</code></td><td>Главная (телефон)</td><td>Home · mobile</td></tr>
+        <tr><td><code>mobile.html#library</code></td><td>Все гайды + поиск ⌘K</td><td>Catalog · mobile</td></tr>
+        <tr><td><code>mobile.html#claude</code></td><td>Статья Claude Code</td><td>MobileArticle</td></tr>
+        <tr><td><code>mobile.html#hermes</code></td><td>Статья Hermes</td><td>MobileArticle</td></tr>
+        <tr><td><code>mobile.html#codex</code></td><td>Статья Codex</td><td>MobileArticle</td></tr>
+        <tr><td><code>mobile.html#about</code></td><td>О проекте</td><td>AboutPage · mobile</td></tr>
+      </tbody>
+    </table>
+    <div class="note"><b>Бургер-меню</b> (иконка с короткой средней линией) открывает шторку слева с разделами и кнопкой «Вступить в сообщество». Внизу мобильных статей — кросс-ссылки на другие разделы, тоже мобильные.</div>
+  </section>
+
+  <section>
+    <h2>Служебные файлы</h2>
+    <table>
+      <thead><tr><th>Файл</th><th>Назначение</th></tr></thead>
+      <tbody>
+        <tr><td><code>gf-app.jsx</code></td><td>Все компоненты + роутинг (mount-switch по __GF_VIEW / __GF_CAT / hash)</td></tr>
+        <tr><td><code>gf-styles.css</code></td><td>Единый стиль — пересобирается из &lt;style&gt; в guides-funnel-explore.html</td></tr>
+        <tr><td><code>image-slot.js</code></td><td>Заполняемые слоты под баннеры</td></tr>
+        <tr><td><code>guides-funnel-explore.html</code></td><td>Холст всех вариантов (десктоп/мобайл/темы) — рабочий исходник стиля</td></tr>
+        <tr><td><code>EdgeLab - Главная.html</code> · <code>EdgeLab Guides - Вариант C.html</code></td><td>Ранние отдельные версии Главной и статьи (legacy, дублируют index/guide)</td></tr>
+      </tbody>
+    </table>
+    <div class="note"><b>Важно при правках.</b> Стиль меняем в <code>guides-funnel-explore.html</code> (блок &lt;style&gt;), затем пересобираем <code>gf-styles.css</code> из него — иначе отдельные страницы не подхватят изменения. Логику и тексты — в <code>gf-app.jsx</code>; все страницы обновятся сразу, так как ссылаются на один файл.</div>
+  </section>
+
+  <div class="foot">© 2026 EDGELAB SPACE · ДАШИ ЕШИЕВ · КАНАЛ «ЗАПИСКИ AI-ЭНТУЗИАСТА»</div>
+</div>
+</body>
+</html>

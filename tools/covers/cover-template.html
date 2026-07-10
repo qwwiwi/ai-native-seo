@@ -1,0 +1,43 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">
+<link href="__FONTS_HREF__" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1600px;height:900px;overflow:hidden;font-family:'__FONT_DISPLAY__',sans-serif}
+  .cover{position:relative;width:1600px;height:900px;background:#0E1012;overflow:hidden}
+  .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  /* legibility scrims */
+  .scrim-b{position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,9,10,0) 38%,rgba(8,9,10,.55) 70%,rgba(8,9,10,.94) 100%)}
+  .scrim-l{position:absolute;inset:0;background:linear-gradient(90deg,rgba(8,9,10,.85) 0%,rgba(8,9,10,.35) 42%,rgba(8,9,10,0) 65%)}
+  /* brand wordmark (from brand.config, same split as the Logo component) */
+  .brand{position:absolute;top:46px;left:56px;display:flex;align-items:center;font-weight:600;font-size:26px;letter-spacing:-.02em;color:#fff;z-index:3}
+  .brand .sq{display:inline-block;width:11px;height:11px;background:__ACCENT__;border:1.5px solid rgba(255,255,255,.85);margin:0 7px 0 3px}
+  /* bottom block */
+  .blk{position:absolute;left:64px;bottom:70px;z-index:3;max-width:1080px}
+  .badge{width:96px;height:96px;border-radius:22px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 40px rgba(0,0,0,.5);margin-bottom:28px;overflow:hidden}
+  .badge img{width:100%;height:100%;object-fit:contain}
+  .eyebrow{font-family:'__FONT_MONO__',monospace;font-weight:600;font-size:21px;letter-spacing:.16em;color:__ACCENT__;text-transform:uppercase;margin-bottom:18px;display:flex;align-items:center;gap:12px}
+  .eyebrow .dot{width:9px;height:9px;background:__ACCENT__;display:inline-block}
+  .title{font-weight:800;font-size:122px;line-height:.94;letter-spacing:-.03em;color:#fff;text-shadow:0 4px 40px rgba(0,0,0,.6)}
+  .title .lime{color:__ACCENT__}
+  .sub{margin-top:26px;font-weight:600;font-size:46px;letter-spacing:-.015em;color:rgba(255,255,255,.88)}
+  /* accent corner strip (brand accent) */
+  .accent{position:absolute;right:0;top:0;width:6px;height:100%;background:__ACCENT__;opacity:.9;z-index:4}
+  /* --mono (articles): only the SCENE/illustration is black-and-white (the --bg image).
+     The brand accents stay LIME — wordmark square, title <lime>, eyebrow, corner strip —
+     so article covers keep the EdgeLab style. Per prince 2026-06-17: monochrome the
+     illustration, not the overlay. (kept as a class hook for any article-only tweaks.) */
+</style></head>
+<body>
+  <div class="cover __MONO__">
+    <img class="bg" src="__BG__">
+    <div class="scrim-b"></div><div class="scrim-l"></div>
+    <div class="brand">__WORDMARK__</div>
+    <div class="blk">
+      __BADGE__
+      <div class="eyebrow"><span class="dot"></span>__EYEBROW__</div>
+      <div class="title">__TITLE__</div>
+      <div class="sub">__SUB__</div>
+    </div>
+    <div class="accent"></div>
+  </div>
+</body></html>

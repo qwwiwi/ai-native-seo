@@ -1,0 +1,71 @@
+blog.edgelab.space {
+	root * /var/www/blog-edgelab-space
+	encode gzip
+	header X-Frame-Options "SAMEORIGIN"
+	header X-Content-Type-Options "nosniff"
+
+	# agent-readiness sidecar content-types
+	@apicatalog path /.well-known/api-catalog
+	header @apicatalog Content-Type "application/linkset+json"
+	@mdfiles path *.md
+	header @mdfiles Content-Type "text/markdown; charset=utf-8"
+	@llms path /llms.txt
+	header @llms Content-Type "text/markdown; charset=utf-8"
+
+	# Link header on homepage
+	@home path /
+	header @home Link "</.well-known/api-catalog>; rel=\"api-catalog\""
+
+	# CSS/JS/JSX revalidate every load (no version query -> never stale)
+	@assets path *.css *.js *.jsx *.map
+	header @assets Cache-Control "no-cache"
+
+	# HTML pages: bypass CF cache so origin can device-serve, + Vary
+	@htmlish path_regexp htm ^/([^.]*/?|.+\.html)$
+	header @htmlish Cache-Control "no-cache"
+	header @htmlish Vary "User-Agent"
+
+	# Mobile device detection
+	@mobile header_regexp ua User-Agent "(?i)(android|iphone|ipod|iemobile|blackberry|opera mini|mobile)"
+
+	route {
+		# serve directly: prerendered mobile dir, interactive mobile shell, assets, sidecar
+		@passthrough {
+			path /m/* /mobile.html /.well-known/*
+			path *.css *.js *.jsx *.png *.jpg *.jpeg *.ico *.svg *.webp *.woff *.woff2 *.md *.json *.xml *.txt *.map
+		}
+		handle @passthrough {
+			file_server
+		}
+		# MOBILE: normalize URL (strip .html / trailing slash) -> /m/<clean>.html
+		handle @mobile {
+			@mroot path /
+			handle @mroot {
+				rewrite * /m/index.html
+				file_server
+			}
+			handle {
+				@mc path_regexp mc ^/(.+?)(?:\.html)?/?$
+				rewrite @mc /m/{re.mc.1}.html
+				file_server
+			}
+		}
+		# DESKTOP: normalize URL (strip .html / trailing slash) -> /<clean>.html
+		handle {
+			@droot path /
+			handle @droot {
+				rewrite * /index.html
+				file_server
+			}
+			handle {
+				@dc path_regexp dc ^/(.+?)(?:\.html)?/?$
+				rewrite @dc /{re.dc.1}.html
+				file_server
+			}
+		}
+	}
+
+	handle_errors {
+		respond "Not Found" 404
+	}
+}

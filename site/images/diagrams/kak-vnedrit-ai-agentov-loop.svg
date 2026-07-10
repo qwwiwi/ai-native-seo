@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 366" role="img" aria-label="Внедрение – это петля: одна задача, описать процессом, запустить в малом, проверить и поправить, расширить. Проверка с правками идёт неделю и повторяется; со второй задачи путь короче.">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0A0A0A"/></marker>
+  </defs>
+  <style>
+    .t{font-family:"Inter","Inter Tight",-apple-system,system-ui,sans-serif}
+    .ink{fill:#0A0A0A}.box{fill:#FFFFFF}.cap{fill:#8a887f}
+  </style>
+  <rect x="1.5" y="1.5" width="1037" height="363" rx="16" fill="#FBFBF8" stroke="#0A0A0A" stroke-width="2"/>
+  <text class="t ink" x="40" y="50" font-size="22" font-weight="700">Внедрение – это петля, а не разовая настройка</text>
+
+  <!-- lime accent marker above the heart block -->
+  <rect x="724" y="98" width="11" height="11" fill="#D4FF00" stroke="#0A0A0A" stroke-width="1.3"/>
+
+  <!-- main row y ~120-172 -->
+  <g font-size="14" text-anchor="middle">
+    <rect class="box" x="40" y="120" width="158" height="52" rx="11" stroke="#0A0A0A" stroke-width="1.7"/>
+    <text class="t ink" x="119" y="151">Одна задача</text>
+    <line x1="198" y1="146" x2="228" y2="146" stroke="#0A0A0A" stroke-width="1.7" marker-end="url(#ar)"/>
+
+    <rect class="box" x="228" y="120" width="176" height="52" rx="11" stroke="#0A0A0A" stroke-width="1.7"/>
+    <text class="t ink" x="316" y="151">Описать процессом</text>
+    <line x1="404" y1="146" x2="434" y2="146" stroke="#0A0A0A" stroke-width="1.7" marker-end="url(#ar)"/>
+
+    <rect class="box" x="434" y="120" width="168" height="52" rx="11" stroke="#0A0A0A" stroke-width="1.7"/>
+    <text class="t ink" x="518" y="151">Запустить в малом</text>
+    <line x1="602" y1="146" x2="632" y2="146" stroke="#0A0A0A" stroke-width="1.7" marker-end="url(#ar)"/>
+
+    <rect class="box" x="632" y="120" width="196" height="52" rx="11" stroke="#0A0A0A" stroke-width="2.1"/>
+    <text class="t ink" x="730" y="151" font-weight="600" font-size="13.5">Проверить и поправить</text>
+    <line x1="828" y1="146" x2="858" y2="146" stroke="#0A0A0A" stroke-width="1.7" marker-end="url(#ar)"/>
+
+    <rect class="box" x="858" y="120" width="142" height="52" rx="11" stroke="#0A0A0A" stroke-width="1.7"/>
+    <text class="t ink" x="929" y="151">Расширить</text>
+  </g>
+
+  <!-- return arc: heart → запустить в малом (the weekly loop) -->
+  <path d="M712 172 C 686 230, 552 230, 522 174" fill="none" stroke="#0A0A0A" stroke-width="1.6" marker-end="url(#ar)"/>
+  <text class="t cap" x="617" y="226" font-size="13" text-anchor="middle">неделя правок – пока агент не закроет задачу как ты</text>
+
+  <!-- expand → second task faster (dashed back to start) -->
+  <path d="M929 172 C 929 300, 119 300, 119 174" fill="none" stroke="#9a988f" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#ar)"/>
+  <text class="t cap" x="524" y="312" font-size="13" text-anchor="middle">со второй задачи путь короче – навык описывать и проверять уже есть</text>
+</svg>

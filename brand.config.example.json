@@ -1,0 +1,82 @@
+{
+  "brandName": "Acme Digest",
+  "domain": {
+    "site": "https://blog.acme.example",
+    "apex": "https://acme.example"
+  },
+  "author": {
+    "name": "Jane Roe",
+    "url": "https://t.me/janeroe",
+    "legal": "Acme Media LLC",
+    "legalEntity": "Acme Media LLC · Reg. 000-00-0000"
+  },
+  "telegram": {
+    "url": "https://t.me/acmedigest",
+    "name": "Acme Digest",
+    "channelUrl": "https://t.me/acmedigest",
+    "channelName": "Acme Digest"
+  },
+  "palette": {
+    "ink": "#101418",
+    "accent": "#3B82F6",
+    "offwhite": "#FFFFFF",
+    "bgLight": "#F5F7FA",
+    "bgDark": "#0E1116"
+  },
+  "fonts": {
+    "display": "Space Grotesk",
+    "body": "Manrope",
+    "mono": "IBM Plex Mono",
+    "serif": "Lora",
+    "googleHref": "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+  },
+  "funnel": {
+    "mode": "none",
+    "ctaText": "Join the community",
+    "targetUrl": "https://acme.example",
+    "offerText": "A private AI community: skill library, live chat, weekly streams.",
+    "docs": {
+      "privacy": "https://acme.example/privacy",
+      "offer": "https://acme.example/offer"
+    }
+  },
+  "mcpIdentity": {
+    "name": "acme-digest",
+    "title": "Acme Digest MCP",
+    "serverUrl": "https://mcp.acme.example/mcp",
+    "apiUrl": "https://api.acme.example",
+    "docsUrl": "https://github.com/acme/acme-digest-docs",
+    "skills": [
+      {
+        "name": "acme-tool-finder",
+        "type": "agent-skill",
+        "description": "Match the right tool or agent to a task by use-case scenario.",
+        "url": "https://github.com/acme/acme-digest-docs"
+      },
+      {
+        "name": "acme-knowledge-search",
+        "type": "agent-skill",
+        "description": "Search the Acme Digest knowledge library over MCP: guides, materials, hub questions.",
+        "url": "https://mcp.acme.example/mcp"
+      }
+    ]
+  },
+  "analytics": {
+    "ga4": "G-ACME000001",
+    "metrika": "99999999",
+    "indexNowKey": "acmeacmeacmeacmeacmeacmeacme0001"
+  },
+  "assets": {
+    "og": "images/og-default.png",
+    "logo": "images/logo.png"
+  },
+  "home": {
+    "eyebrow": "AI DIGEST",
+    "title": "Practical articles and guides on AI agents",
+    "description": "Hands-on breakdowns of agent tooling, knowledge bases and automation — in plain language.",
+    "ctaText": "Start here",
+    "ctaHref": "/library/",
+    "heroImage": "/covers/_home-hero.webp",
+    "metaDescription": "Practical guides on AI agents, tooling and automation. Acme Digest."
+  }
+}

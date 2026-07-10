@@ -1,0 +1,81 @@
+{
+  "brandName": "EdgeLab Space",
+  "domain": {
+    "site": "https://blog.edgelab.space",
+    "apex": "https://edgelab.space"
+  },
+  "author": {
+    "name": "Даши Ешиев",
+    "url": "https://t.me/dashieshiev",
+    "legal": "EdgeLab Space",
+    "legalEntity": "ИП ЕШИЕВ ЦЫРЕН-ДАШИ БУЛАТОВИЧ · ИНН 032315681243"
+  },
+  "telegram": {
+    "url": "https://t.me/dashieshiev",
+    "name": "EdgeLab Space",
+    "channelUrl": "https://t.me/dashi_agent",
+    "channelName": "Записки AI-энтузиаста"
+  },
+  "palette": {
+    "ink": "#0A0A0A",
+    "accent": "#D4FF00",
+    "offwhite": "#FBFBF8",
+    "bgLight": "#FAF7F2",
+    "bgDark": "#141416"
+  },
+  "fonts": {
+    "display": "Inter Tight",
+    "body": "Inter",
+    "mono": "JetBrains Mono",
+    "serif": "PT Serif",
+    "googleHref": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+  },
+  "funnel": {
+    "mode": "community",
+    "ctaText": "Вступить в сообщество",
+    "targetUrl": "https://edgelab.space",
+    "offerText": "Закрытое AI-комьюнити: библиотека скиллов, живой чат, эфиры по средам.",
+    "docs": {
+      "privacy": "https://drive.google.com/file/d/1hUEZbJBCdTQcpBqy_OAd8EupZwY9Xpx1/view",
+      "offer": "https://drive.google.com/file/d/1i6XeY6SMcuA4uYYxBVpxEPN_EI_AeIH6/view"
+    }
+  },
+  "mcpIdentity": {
+    "name": "edgelab-space",
+    "title": "EdgeLab Space MCP",
+    "serverUrl": "https://mcp.edgelab.space/mcp",
+    "apiUrl": "https://api.edgelab.space",
+    "docsUrl": "https://github.com/qwwiwi/edgelab-space-docs",
+    "skills": [
+      {
+        "name": "agenttinder",
+        "type": "agent-skill",
+        "description": "Подбор AI-инструментов и агентов под задачу: матчинг по сценарию использования.",
+        "url": "https://github.com/qwwiwi/edgelab-space-docs"
+      },
+      {
+        "name": "edgelab-knowledge-search",
+        "type": "agent-skill",
+        "description": "Поиск по библиотеке знаний EdgeLab Space через MCP: гайды, материалы, вопросы хаба.",
+        "url": "https://mcp.edgelab.space/mcp"
+      }
+    ]
+  },
+  "analytics": {
+    "ga4": "G-J3H4311DJT",
+    "metrika": "109832554",
+    "indexNowKey": "bb447dc53d0f0b6c96b9c32b8fa4cbb3"
+  },
+  "assets": {
+    "og": "images/og-default.png",
+    "logo": "images/logo.png"
+  },
+  "home": {
+    "eyebrow": "AI ПОРТАЛ",
+    "title": "Статьи и гайды по трендовым AI решениям",
+    "description": "Разбираю на практике Claude Code, дизайн с AI, базы знаний и автоматизацию – живым языком, без сухих инструкций.",
+    "ctaText": "Начать внедрение",
+    "ctaHref": "/guides/kak-vnedrit-ai-agentov/",
+    "heroImage": "/covers/_home-hero-dashi.webp"
+  }
+}
