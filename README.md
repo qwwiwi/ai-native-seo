@@ -68,7 +68,7 @@ npx serve build      # локальный предпросмотр
 ## White-label: портал под свой бренд
 
 ```bash
-cp brand.config.example.json brands/mybrand.json
+mkdir -p brands && cp brand.config.example.json brands/mybrand.json
 # заполни: brandName, domain, author, telegram, palette (hex), fonts (Google Fonts),
 # funnel (mode: "none" убирает промо-блоки), home (тексты главной + metaDescription),
 # analytics (свои Метрика/GA4/IndexNow-ключ), assets (логотип, og-картинка)
