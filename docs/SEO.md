@@ -45,6 +45,17 @@ IG / контент → клик (Sink) → визит (Метрика / GA4) �
 
 `scripts/build-seo.mjs` генерит: robots (AI-allowlist + Content-Signal), sitemap (стабильный lastmod), `llms.txt` + `llms-full.txt`, JSON-LD (Article/TechArticle/FAQPage/HowTo/BreadcrumbList/Organization/WebSite/CollectionPage), per-slug og:image, IndexNow-ключ. `deploy.sh` авто-пингует IndexNow (Яндекс + Bing). Плюс MCP-сервер и `/.well-known/*` (см. README / `ROUTES.md`).
 
+**lastmod и Google (white-label, движок):**
+- `lastmod` в sitemap, `dateModified` и «Обновлено» — честные: дата последнего коммита, который
+  существенно менял текст гайда (≥30 слов или `[content]` в теме коммита; `scripts/content-dates.mjs`).
+  Для коммита-создания файла (часто bulk-импорт) побеждает `updated_at` из frontmatter, если он не
+  позже этого коммита. `changefreq`/`priority` в sitemap нет.
+- Листинги: главная и `/library/` — дата самого свежего гайда; страница категории — самого свежего
+  гайда этой категории; `/about/` — фиксированная дата.
+- Google: `deploy.sh` сабмитит sitemap в Search Console (`scripts/gsc-submit-sitemap.mjs`,
+  `analytics.gscProperty` + `analytics.gscKeyPath`); без property/ключа шаг пропускается. Indexing API
+  для гайдов не используем. Подробно — `DEPLOY.md` «Google Search Console».
+
 ## Кто чем владеет
 
 - **Сайтовая машинерия** (robots/sitemap/llms/JSON-LD/IndexNow + теги Метрики и GA4 на страницах) — этот репозиторий, деплоит Тралл.
@@ -52,6 +63,8 @@ IG / контент → клик (Sink) → визит (Метрика / GA4) �
 - **Cloudflare/DNS** (апекс, верификации владения) — Сильвана.
 
 ## История
+
+- 2026-10-25: перенос Google SEO-пакета из эталонного блога в движок (white-label): честный lastmod из git (без changefreq/priority; lastmod листингов = самый свежий дочерний гайд), сабмит sitemap в GSC на каждый деплой (пропуск без `analytics.gscProperty`/ключа), гейт удалений в `deploy.sh`, 301 на канонические URL + `noindex` для twin/sidecar, блок «Все материалы» и UTM своего slug, правила Google в content-lint. Фикс: страницы категорий рендерили копию первого гайда — теперь это листинги (H1 = категория, CollectionPage + ItemList), гейт `verify-category-pages.mjs`.
 
 - 2026-06-24: Вебмастер — blog. добавлен хостом и verified; SEO-пайплайн P0+P1 зашит в код (content-lint, og:image, llms-full.txt, авто-IndexNow); кластер «скиллы для Claude Code» + бэкфилл кросс-ссылок на 24 legacy-гайда (внутренняя перелинковка — FAIL-гейт); GSC подключён (domain verified + SA Full + Search Console API включён + скилл `google-search-console` собран + sitemap засабмичен; pillar уже «Submitted and indexed» в Google); биллинг Yandex Cloud подключён → скилл `yandex-wordstat` разблокирован и работает (питает M0).
 - 2026-06-18: цели дочитываемости + Вебвизор + GA4-измерение (см. ANALYTICS.md).

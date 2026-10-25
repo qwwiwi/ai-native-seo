@@ -205,11 +205,24 @@ function TelegramButton() {
 /* ---------- portal navigation ---------- */
 // Absolute clean URLs — work from any page depth / trailing-slash / device-served
 // path. No .html, no relative ../ juggling (that broke styling on clean URLs).
-const PAGES = { home: "/", library: "/library/", articles: "/#articles", claude: "/claude-code/", hermes: "/hermes/", codex: "/codex/", about: "/about/", guide: "/guide/" };
+// Category landing pages come from the data (window.__GF_CATS, `page` set only for a
+// category whose listing page is actually built — scripts/categories.mjs), so the nav
+// and footers can never link to a 404 pillar. No data (design canvas) → the original
+// three sections.
+const CAT_PAGES = (() => {
+  const cats = (typeof window !== "undefined" && window.__GF_CATS) || [];
+  if (!cats.length) return [{ id: "claude", name: "Claude Code", page: "/claude-code/" }, { id: "hermes", name: "Hermes", page: "/hermes/" }, { id: "codex", name: "Codex", page: "/codex/" }];
+  return cats.filter((c) => c.page);
+})();
+const CAT_PAGE_BY_ID = Object.fromEntries(CAT_PAGES.map((c) => [c.id, c]));
+const PAGES = { home: "/", library: "/library/", articles: "/#articles", ...Object.fromEntries(CAT_PAGES.map((c) => [c.id, c.page])), about: "/about/", guide: "/guide/" };
 const GF_BASE = "";
 const GUIDE_HREF = (slug) => `/guides/${slug}/`;
 const P = (key) => PAGES[key];
-const NAV = [["home", "Главная"], ["library", "Гайды"], ["articles", "Статьи"], ["claude", "Claude Code"], ["hermes", "Hermes"], ["codex", "Codex"], ["about", "О проекте"]];
+const NAV = [["home", "Главная"], ["library", "Гайды"], ["articles", "Статьи"], ...CAT_PAGES.map((c) => [c.id, c.name]), ["about", "О проекте"]];
+function CatLinks() {
+  return CAT_PAGES.map((c) => <a key={c.id} href={c.page}>{c.name}</a>);
+}
 function NavLinks({ cur }) {
   return (
     <nav className="gp-nav">
@@ -860,9 +873,11 @@ function Content({ article, cta, rich }) {
         </React.Fragment>
       )}
 
-      {cta}
-
+      {/* «Читайте дальше»: contextual links right after the text (main content area),
+          ahead of the CTA banner — not below it with the page chrome. */}
       <RelatedGuides items={a.related} />
+
+      {cta}
 
       <div className="gp-docsnav">
         <a className="gp-navcard" href={navHref(a.docsnavSlugs && a.docsnavSlugs[0])}><div className="l">← Предыдущий</div><div className="t">{a.docsnav[0]}</div></a>
@@ -918,9 +933,7 @@ function Footer() {
         <div className="gp-foot-cols">
           <div className="col">
             <div className="h">Разделы</div>
-            <a href={P("claude")}>Claude Code</a>
-            <a href={P("hermes")}>Hermes</a>
-            <a href={P("codex")}>Codex</a>
+            <CatLinks />
             <a href={P("library")}>Все гайды</a>
           </div>
           {FUNNEL_ON && (
@@ -1040,7 +1053,7 @@ function MobileC({ initialTheme, scroll, demoScrolled }) {
         <div className="m-footer">
           <Logo />
           <div className="m-foot-cols">
-            <div className="col"><div className="h">Гайды</div><a href={P("claude")}>Claude Code</a><a href={P("codex")}>Codex</a><a href={P("hermes")}>Hermes</a></div>
+            <div className="col"><div className="h">Гайды</div><CatLinks /></div>
             {FUNNEL_ON && <div className="col"><div className="h">{BRAND_NAME}</div><a href={utm("footer")}>Перейти →</a><a href={ELS_STREAMS} target="_blank" rel="noopener">Эфиры</a></div>}
             <div className="col"><div className="h">Документы</div><a href={DOC_PRIVACY} target="_blank" rel="noopener">Политика</a><a href={DOC_OFFER} target="_blank" rel="noopener">Оферта</a></div>
           </div>
@@ -1091,6 +1104,8 @@ function MobileArticle({ article, initialTheme }) {
               <Changelog items={a.changelog} />
             </React.Fragment>
           )}
+          {/* contextual links right after the text, ahead of the CTA (as on desktop) */}
+          <RelatedGuides items={a.related} />
           {FUNNEL_ON && (
           <div className="m-cta">
             <div className="cta-brand"><Logo /></div>
@@ -1099,13 +1114,12 @@ function MobileArticle({ article, initialTheme }) {
             <a className="btn" href={utm("cta")}>{CTA_TEXT} →</a>
           </div>
           )}
-          <RelatedGuides items={a.related} />
           {a.bodyHtml && <GuideIndex current={a.slug} />}
         </div>
         <div className="m-footer">
           <Logo />
           <div className="m-foot-cols">
-            <div className="col"><div className="h">Разделы</div><a href={P("claude")}>Claude Code</a><a href={P("hermes")}>Hermes</a><a href={P("codex")}>Codex</a></div>
+            <div className="col"><div className="h">Разделы</div><CatLinks /></div>
             <div className="col"><div className="h">Проект</div><a href={P("library")}>Все гайды</a><a href={P("about")}>О проекте</a></div>
           </div>
           <div className="m-foot-bottom">© 2026 {LEGAL_NAME.toUpperCase()}<br />{LEGAL_ENTITY}</div>
@@ -1564,122 +1578,42 @@ function Home({ initialTheme, mobile, idp = "h" }) {
   );
 }
 
-/* ===== Category page (Claude Code / Hermes / Codex) ===== */
-const CATPAGES = {
-  claude: {
-    cur: "claude", eyebrow: "Claude Code",
-    title: "Claude Code без боли",
-    lead: "Личный опыт работы с агентом, который правит код сам: настройка, привычки, разборы реальных задач — по-человечески, без сухих инструкций.",
-    featTag: "Claude Code · личный опыт",
-    featTitle: "Как я собрал рабочее окружение за один вечер",
-    featDesc: "Никакого волшебства — только то, что реально сработало. Что сломалось по дороге и почему полчаса настройки окупились на первой же задаче.",
-    featMeta: "12 ИЮНЯ · 9 МИН ЧТЕНИЯ",
-    list: [
-      { t: "Память, которая не забывает", d: "Почему агент наконец перестал переспрашивать одно и то же.", m: "18 МАЯ · 6 МИН" },
-      { t: "День, когда агент написал свой первый скилл", d: "Маленький момент, после которого всё пошло иначе.", m: "14 МАЯ · 5 МИН" },
-      { t: "Доверенные команды: меньше вопросов", d: "Как я перестал подтверждать каждый шаг и стал доверять агенту.", m: "9 МАЯ · 6 МИН" },
-      { t: "Большой репозиторий и контекст", d: "Что помогло агенту не теряться в проекте на сотни файлов.", m: "2 МАЯ · 8 МИН" },
-    ],
-    articles: [
-      { t: "Почему я перестал гнаться за самой умной моделью", d: "Оказалось, дело вообще не в модели.", m: "3 ИЮНЯ · 6 МИН" },
-      { t: "Инструменты решают больше, чем кажется", d: "Один правильный инструмент сэкономил мне неделю.", m: "27 МАЯ · 5 МИН" },
-      { t: "Мой CLAUDE.md, который я ношу из проекта в проект", d: "Что в нём лежит и почему он так экономит время.", m: "20 МАЯ · 7 МИН" },
-    ],
-  },
-  hermes: {
-    cur: "hermes", eyebrow: "Hermes",
-    title: "Hermes — личный аналитик",
-    lead: "История о том, как я три месяца учил агента читать рынок и собирать утренние сводки за меня. Что получилось, а что — нет.",
-    featTag: "Hermes · личный опыт",
-    featTitle: "Hermes стал моим аналитиком",
-    featDesc: "Три месяца я учил агента читать рынок за меня. Рассказываю, что из этого вышло — без прикрас и обещаний лёгких денег.",
-    featMeta: "25 МАЯ · 8 МИН ЧТЕНИЯ",
-    list: [
-      { t: "Утренние сводки в 10:00", d: "Как я собрал ритуал, который экономит мне час каждый день.", m: "21 МАЯ · 6 МИН" },
-      { t: "Обратная связь = лучший способ обучить агента", d: "Шесть шагов петли, после которых ответы стали точнее.", m: "16 МАЯ · 7 МИН" },
-      { t: "Эхо-камера: честно о проблеме", d: "Где агент начинает повторять одно и то же и что я с этим делаю.", m: "10 МАЯ · 5 МИН" },
-      { t: "Маршрутизация задач между агентами", d: "Кто за что отвечает в моей связке и почему так.", m: "3 МАЯ · 6 МИН" },
-    ],
-    articles: [
-      { t: "Открытость победит — и вот почему", d: "Честный взгляд на то, куда движется индустрия.", m: "21 МАЯ · 7 МИН" },
-      { t: "Как я перестал бояться, что агент ошибётся", d: "Спокойствие приходит, когда у тебя есть петля проверки.", m: "12 МАЯ · 5 МИН" },
-      { t: "Память команды: один контекст на всех", d: "Зачем агентам общая память и как её не превратить в свалку.", m: "5 МАЯ · 6 МИН" },
-    ],
-  },
-  codex: {
-    cur: "codex", eyebrow: "Codex",
-    title: "Codex на практике",
-    lead: "Как я подружил Codex с реальными проектами: запуск, ревью, автоисправления. Личные наблюдения, а не пересказ документации.",
-    featTag: "Codex · личный опыт",
-    featTitle: "Первый запуск Codex: чего я не ожидал",
-    featDesc: "Сел попробовать на вечер — остался на неделю. Рассказываю, где Codex приятно удивил, а где пришлось перестроить привычки.",
-    featMeta: "8 ИЮНЯ · 7 МИН ЧТЕНИЯ",
-    list: [
-      { t: "Codex в ревью пул-реквестов", d: "Как агент стал моим первым ревьюером и что это дало команде.", m: "1 ИЮНЯ · 6 МИН" },
-      { t: "Автоисправление багов: где предел", d: "Что Codex чинит сам, а где всё ещё нужен человек.", m: "24 МАЯ · 5 МИН" },
-      { t: "Песочница и доступы по уму", d: "Как я настроил безопасный запуск без лишней паранойи.", m: "17 МАЯ · 6 МИН" },
-      { t: "Codex против Claude Code: мой выбор", d: "Когда беру одно, когда другое — без священных войн.", m: "10 МАЯ · 8 МИН" },
-    ],
-    articles: [
-      { t: "Почему я держу два агента, а не одного", d: "Разные задачи — разные сильные стороны.", m: "30 МАЯ · 6 МИН" },
-      { t: "CI и агент: автоматизация без сюрпризов", d: "Как я пустил Codex в пайплайн и спокойно сплю.", m: "23 МАЯ · 7 МИН" },
-      { t: "Промпты для Codex, которые реально работают", d: "Несколько приёмов, проверенных на своих проектах.", m: "15 МАЯ · 5 МИН" },
-    ],
-  },
-};
+/* ===== Category page (one per category with a pillar: /claude-code/, /hermes/, …) =====
+   A real LISTING built from the data — category H1, intro, a card per guide with a
+   link. It used to render a copy of the category's first guide (same H1 and body
+   under the category URL = a duplicate of the guide for Google). The intro is the
+   same text build-seo puts into the meta description (window.__GF_CATS[].description:
+   the brand's `categories[].description`, else built from the listed guides). */
 function CategoryPage({ cat, initialTheme, mobile, idp }) {
-  const c = CATPAGES[cat] || CATPAGES.claude;
-  const p = idp || cat;
+  const c = CAT_PAGE_BY_ID[cat] || CAT_PAGES[0] || { id: cat, name: cat };
+  const p = idp || c.id;
   const [theme, setTheme] = useState(getStoredTheme(initialTheme));
   const night = theme === "dark";
+  const items = guidesInCat(c.id);
+  const metaShort = (g) => `${g.min} МИН ЧТЕНИЯ`;
   return (
     <div className={(mobile ? "phone " : "") + "home gp dir-c theme-" + theme} style={mobile ? {} : { width: "100%", position: "relative" }}>
-      <PortalHead cur={c.cur} mobile={mobile} night={night} onToggle={() => flipTheme(setTheme)} />
+      <PortalHead cur={c.id} mobile={mobile} night={night} onToggle={() => flipTheme(setTheme)} />
       <div className="home-wrap">
-        <div className="home-hero">
+        <div className="home-hero cat-listing">
           <div className="home-hero-inner">
             <div className="txt">
-              <span className="eyebrow"><span className="dot"></span>{c.eyebrow}</span>
-              <h1>{c.title}</h1>
-              <p className="desc">{c.lead}</p>
-              <a className="read" href={PAGES.guide}><span className="circ">→</span><span className="lbl">Читать гайд</span></a>
-            </div>
-            <div className="media">
-              <span className="pln">{c.eyebrow}</span>
-              <Slot id={p + "-hero"} ph={"Баннер · " + c.eyebrow} r={0} />
+              <span className="eyebrow"><span className="dot"></span>Раздел · {items.length}</span>
+              <h1>{c.name}</h1>
+              {c.description && <p className="desc">{c.description}</p>}
             </div>
           </div>
         </div>
         <div className="home-sec">
-          <HomeSecHead title="Гайды" />
-          <div className="hs-feat">
-            <a className="feat-card" href={PAGES.guide} style={{ color: "inherit" }}>
-              <div className="ft-media"><span className="corner">Гайд</span><Slot id={p + "-feat"} ph="Обложка гайда" r={14} /></div>
-              <div className="tag"><span className="d"></span>{c.featTag}</div>
-              <h3>{c.featTitle}</h3>
-              <p className="cd">{c.featDesc}</p>
-              <div className="cm">{c.featMeta}</div>
-            </a>
-            <div className="hs-list">
-              {c.list.map((g, i) => (
-                <a className="hs-li" href={PAGES.guide} key={i} style={{ color: "inherit" }}>
-                  <div className="li-txt"><h4>{g.t}</h4><p>{g.d}</p><div className="cm">{g.m}</div></div>
-                  <Slot id={p + "-d" + i} ph="" r={9} />
-                </a>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="home-sec">
-          <HomeSecHead title="Статьи" />
+          <div className="hs-head"><h2>Материалы раздела</h2><a className="all" href={P("library")}>Все гайды →</a></div>
           <div className="hs-cards3">
-            {c.articles.map((g, i) => (
-              <a className="pc" href={PAGES.guide} key={i} style={{ color: "inherit" }}>
-                <Slot id={p + "-a" + i} ph="Обложка" r={13} />
-                <div className="tag"><span className="d"></span>Статья</div>
-                <h4>{g.t}</h4>
-                <p>{g.d}</p>
-                <div className="cm">{g.m}</div>
+            {items.map((g, i) => (
+              <a className="pc" href={GUIDE_HREF(g.slug)} key={g.slug} style={{ color: "inherit" }}>
+                <Slot id={p + "-g" + i} ph="Обложка гайда" r={13} src={g.cover} />
+                <div className="tag"><span className="d"></span>{g.type === "article" ? "Статья" : "Гайд"}</div>
+                <h4>{g.title}</h4>
+                <p>{g.desc}</p>
+                <div className="cm">{metaShort(g)}</div>
               </a>
             ))}
           </div>
@@ -1958,18 +1892,11 @@ if (window.__GF_VIEW === "variantC") {
     </div>
   );
 } else if (window.__GF_VIEW === "category") {
-  // Each category route maps to a representative REAL guide in that category.
-  // Hermes/Codex now have placeholder intro guides (cat=hermes/codex).
-  const CAT_TO_SLUG = {
-    claude: firstInCat("claude", GF_GUIDES[0] && GF_GUIDES[0].slug),
-    hermes: firstInCat("hermes", GF_GUIDES[0] && GF_GUIDES[0].slug),
-    codex: firstInCat("codex", GF_GUIDES[0] && GF_GUIDES[0].slug),
-  };
-  const slug = CAT_TO_SLUG[window.__GF_CAT] || CAT_TO_SLUG.claude;
-  const art = REAL_ARTICLES[slug] || guideToArticle(GF_GUIDES[0]);
+  // A category route (site/<pillar>.html sets __GF_CAT) is the category's own
+  // listing page — never a guide (it used to render the first guide of the category).
   __gfRoot.render(
     <div className="standalone-c">
-      <GuidePage dir="c" initialTheme="light" article={art} cur={window.__GF_CAT === "claude" ? "claude" : (window.__GF_CAT || "claude")} banner={<BannerDark />} cta={<CtaDark grid={true} social={true} />} rich={true} />
+      <CategoryPage cat={window.__GF_CAT} initialTheme="light" />
     </div>
   );
 } else if (window.__GF_VIEW === "about") {
@@ -1993,21 +1920,14 @@ if (window.__GF_VIEW === "variantC") {
   // "guide" alias below is hash-only and never baked.
   const v = (window.location.hash || "").replace("#", "") || window.__GF_ROUTE || window.__GF_CAT || "home";
   const firstReal = REAL_ARTICLES[GF_GUIDES[0] && GF_GUIDES[0].slug];
-  const catReal = (cat) => REAL_ARTICLES[firstInCat(cat, GF_GUIDES[0] && GF_GUIDES[0].slug)];
   const bySlug = REAL_ARTICLES[v];
+  // a category id with a listing page (#claude, #hermes, …) → the mobile listing
   const inner = bySlug ? <MobileArticle article={bySlug} />
-    : v === "claude" ? <MobileArticle article={catReal("claude")} />
-    : v === "hermes" ? <MobileArticle article={catReal("hermes")} />
-    : v === "codex" ? <MobileArticle article={catReal("codex")} />
+    : CAT_PAGE_BY_ID[v] ? <CategoryPage cat={v} initialTheme="light" mobile={true} idp={"m-" + v} />
     : v === "guide" ? <MobileArticle article={firstReal} />
     : v === "about" ? <AboutPage initialTheme="light" mobile={true} />
     : v === "library" ? <Catalog initialTheme="light" mobile={true} />
     : <Home initialTheme="light" mobile={true} idp="mob" />;
-  // page-copy FAB only on mobile GUIDE/category article views
-  const mGuideSlug = bySlug ? v
-    : (v === "claude" || v === "hermes" || v === "codex") ? firstInCat(v, GF_GUIDES[0] && GF_GUIDES[0].slug)
-    : v === "guide" ? (GF_GUIDES[0] && GF_GUIDES[0].slug)
-    : null;
   __gfRoot.render(<div className="mobile-stage">{inner}</div>);
   if (!window.__gfHashWired) { window.__gfHashWired = true; window.addEventListener("hashchange", () => window.location.reload()); }
 } else {

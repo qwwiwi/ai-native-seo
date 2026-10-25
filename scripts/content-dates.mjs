@@ -89,8 +89,9 @@ export function isMaterialChange(a, b) {
 
 /**
  * The last commit that materially changed the body of `relPath`, walking history
- * newest → oldest. Returns { date, creation } (creation = that commit ADDED the
- * file) or null when git has no history for it.
+ * newest → oldest. Returns { date, creation, fmUpdated? } (creation = that commit
+ * ADDED the file; fmUpdated = its frontmatter `updated_at` at that commit) or null
+ * when git has no history for it.
  */
 export function lastContentCommit(root, relPath) {
   // A shallow clone ends history early: its oldest commit would look like the file's
@@ -117,18 +118,29 @@ export function lastContentCommit(root, relPath) {
     }
   }
   if (!commits.length) return null;
+  const rawAt = (c) => runGit(root, ["show", `${c.sha}:${c.path || relPath}`]);
   const bodyAt = (c) => {
-    const raw = runGit(root, ["show", `${c.sha}:${c.path || relPath}`]);
+    const raw = rawAt(c);
     return raw == null ? null : bodyOf(raw);
   };
+  // The creation commit's OWN frontmatter date: a later date-only bump must not
+  // replace it (that would move the honest date to the import day).
+  const created = (c) => ({ date: toIso(c.date), creation: true, fmUpdated: fmUpdatedOf(rawAt(c)) });
   let newer = bodyAt(commits[0]);
   for (let i = 0; i < commits.length; i++) {
     const older = i + 1 < commits.length ? bodyAt(commits[i + 1]) : null;
-    if (older == null) return { date: toIso(commits[i].date), creation: true };
+    if (older == null) return created(commits[i]);
     if (commits[i].forced || isMaterialChange(newer, older)) return { date: toIso(commits[i].date), creation: false };
     newer = older;
   }
-  return { date: toIso(commits[commits.length - 1].date), creation: true };
+  return created(commits[commits.length - 1]);
+}
+
+/** Frontmatter `updated_at` of a raw MDX file (ISO, or "" when absent/invalid). */
+function fmUpdatedOf(raw) {
+  const m = String(raw || "").match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  const v = m && m[1].match(/^updated_at:\s*["']?([^"'\r\n]+?)["']?\s*$/m);
+  return v ? toIso(v[1]) : "";
 }
 
 /**
@@ -156,8 +168,10 @@ export function honestDates(root, relPath, fmUpdated, fmPublished) {
   }
   let updated = last.date;
   let source = "git (last content commit)";
-  if (last.creation && fmU && ms(fmU) <= ms(last.date)) {
-    updated = fmU;
+  // The date the file was added with, else (no date at creation) today's frontmatter.
+  const fmAtCreation = last.creation ? last.fmUpdated || fmU : "";
+  if (fmAtCreation && ms(fmAtCreation) <= ms(last.date)) {
+    updated = fmAtCreation;
     source = "frontmatter (added in git, no content commits since)";
   }
   if (published && ms(updated) < ms(published)) updated = published;

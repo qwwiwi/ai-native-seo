@@ -104,11 +104,17 @@ function validateBrand(b) {
       const k = `categories[${i}]`;
       if (!c || !/^[a-z][a-z0-9-]*$/.test(String(c.id))) fail(`${k}.id`, c && c.id, "must be a lowercase id (a-z, 0-9, -)");
       if (ids.has(c.id)) fail(`${k}.id`, c.id, "must be unique");
+      // ids double as client route names (gf-app PAGES / mobile hash) — a reserved
+      // one would hijack the home/catalog/about routes.
+      if (["home", "library", "articles", "about", "guide", "mobile"].includes(c.id))
+        fail(`${k}.id`, c.id, "must not be a reserved route name (home, library, articles, about, guide, mobile)");
       ids.add(c.id);
       if (typeof c.name !== "string" || !c.name.trim() || /[<>]/.test(c.name))
         fail(`${k}.name`, c.name, "must be a non-empty string without < >");
       if (c.pillar !== undefined && !/^\/[a-z0-9][a-z0-9-]*\/$/.test(String(c.pillar)))
         fail(`${k}.pillar`, c.pillar, "must be a site-relative /slug/ path");
+      if (c.description !== undefined && (typeof c.description !== "string" || !c.description.trim() || /[<>]/.test(c.description)))
+        fail(`${k}.description`, c.description, "must be a non-empty string without < >");
     });
   }
   const content = b.content || {};

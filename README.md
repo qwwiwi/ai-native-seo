@@ -65,6 +65,15 @@ npm run build        # прототип → build/ (статика + весь SE
 npx serve build      # локальный предпросмотр
 ```
 
+Проверки (CI нет — локальный гейт перед push/деплоем):
+
+```bash
+npm run lint         # content-lint (FAIL = сборка не пойдёт)
+npm test             # node --test tests/google-seo.test.mjs (без сети)
+npm run verify       # пост-билд проверки build/ (sitemap/lastmod, категории, related, аналитика)
+npm run check        # = scripts/check.sh: lint → test → build → verify (--no-build — без сборки)
+```
+
 ## White-label: портал под свой бренд
 
 ```bash
@@ -106,8 +115,11 @@ node tools/covers/compose-cover.mjs --bg scene.png \
 BLOG_HOST=root@myserver BLOG_WEBROOT=/var/www/blog-mybrand scripts/deploy.sh
 ```
 
-Скрипт сам: бэкапит текущий webroot → rsync → chown → пингует IndexNow по всем
-URL из sitemap. Раздача — любой статический сервер (Caddy-блок в `deploy/`).
+Скрипт сам: сухой прогон (незапланированные удаления на проде → стоп, `ALLOW_DELETE=1`
+— если удаление намеренное) → бэкапит текущий webroot → rsync → chown → пингует IndexNow
+по всем URL из sitemap → сабмитит sitemap в Google Search Console (если задан
+`analytics.gscProperty` и ключ; иначе шаг пропускается). Раздача — любой статический
+сервер (Caddy-блок в `deploy/`). Подробно — [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Как мерить эффект
 

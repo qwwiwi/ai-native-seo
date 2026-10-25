@@ -164,6 +164,8 @@ test("brand config: a malformed GSC property / category / UTM value fails the bu
   const cases = [
     [{ analytics: { ...base.analytics, gscProperty: "javascript:alert(1)" } }, "analytics.gscProperty"],
     [{ categories: [{ id: "Bad Id", name: "X" }] }, "categories[0].id"],
+    [{ categories: [{ id: "library", name: "X", pillar: "/x/" }] }, "categories[0].id"],
+    [{ categories: [{ id: "x", name: "X", description: "<b>" }] }, "categories[0].description"],
     [{ categories: [{ id: "x", name: "X", pillar: "//evil.example/" }] }, "categories[0].pillar"],
     [{ funnel: { ...base.funnel, utm: { source: "a b" } } }, "funnel.utm.source"],
   ];
@@ -371,4 +373,52 @@ test("ported scripts carry no hard-coded brand identity", () => {
     assert.ok(!/edgelab|kaelthas|mrqwwiwi|dashi/i.test(src), `scripts/${f} hard-codes a brand identity`);
   }
   assert.ok(readdirSync(join(ROOT, "tests")).length > 0);
+});
+
+// ---- 8. category listing pages (verify-category-pages.mjs, the build gate) ----------
+// Fixture build: one Hermes guide (default brand config: /hermes/ pillar, site/hermes.html).
+function categoryFixture(pageHtml) {
+  const b = tmp("catbuild");
+  const files = {
+    "guides-data.js": 'window.__GF_GUIDES = [{"slug":"g1","title":"Гайд один про агента","desc":"Описание гайда","cat":"hermes","catName":"Hermes"}];\n',
+    "index.html": "<h1>home</h1>", "library.html": "<h1>lib</h1>",
+    "guides/g1.html": '<script type="application/ld+json">{"@type":"BreadcrumbList","itemListElement":[{"name":"Главная","item":"https://x.example/"},{"name":"Hermes","item":"https://x.example/hermes/"}]}</script>',
+    "hermes.html": pageHtml, "m/hermes.html": pageHtml,
+  };
+  for (const [p, body] of Object.entries(files)) { mkdirSync(dirname(join(b, p)), { recursive: true }); writeFileSync(join(b, p), body); }
+  return b;
+}
+const verifyCats = (dir) => run(process.execPath, ["scripts/verify-category-pages.mjs"], { env: { VERIFY_BUILD_DIR: dir, BRAND_CONFIG: "" } });
+
+test("verify-category-pages: a category page that renders its first guide FAILs the build", async () => {
+  const dir = categoryFixture('<meta name="description" content="Гайды по теме «Hermes» от X."><h1 class="gp-h1">Гайд один про агента</h1>' +
+    '<div class="gp-article-body">text</div><a href="/codex/">Codex</a>');
+  const { code, out } = await verifyCats(dir);
+  assert.equal(code, 1, out);
+  for (const needle of ["equals the H1 of guide g1", "guide body (.gp-article-body)", "template meta description",
+    "no JSON-LD CollectionPage", "link /codex/ has no built page"]) assert.ok(out.includes(needle), `«${needle}»:\n${out}`);
+});
+
+test("verify-category-pages: a real listing (own H1, cards, CollectionPage) passes", async () => {
+  const ld = JSON.stringify({ "@type": "CollectionPage", mainEntity: { "@type": "ItemList", numberOfItems: 1, itemListElement: [{ url: "https://x.example/guides/g1/" }] } });
+  const dir = categoryFixture(`<meta name="description" content="Hermes: 1 материал — Гайд один про агента."><h1>Hermes</h1>` +
+    `<a href="/guides/g1/">Гайд один про агента</a><script type="application/ld+json">${ld}</script>`);
+  const { code, out } = await verifyCats(dir);
+  assert.equal(code, 0, out);
+});
+
+test("categories: listing description is built from the guides, not a template", async () => {
+  const { categoryDescription } = await import("../scripts/categories.mjs");
+  const d = categoryDescription({ id: "x", name: "MCP" }, [{ title: "A" }, { title: "B" }]);
+  assert.equal(d, "MCP: 2 материала — A; B.");
+  assert.equal(categoryDescription({ id: "x", name: "MCP", description: "Своё" }, []), "Своё");
+});
+
+test("content-lint: a guide titled like a category page FAILs", async () => {
+  const dir = corpusCopy("lint-cat");
+  const f = join(dir, "hermes-intro.mdx");
+  writeFileSync(f, readFileSync(f, "utf8").replace(/^title:.*$/m, 'title: "Hermes"'));
+  const { code, out } = await lint(dir);
+  assert.equal(code, 1, out);
+  assert.match(out, /hermes-intro: H1\/title «Hermes» совпадает с H1 страницы категории \/hermes\//);
 });

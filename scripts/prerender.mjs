@@ -22,11 +22,12 @@ import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { promises as fs } from "node:fs";
+import { promises as fs, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import net from "node:net";
 import brand from "./brand.mjs";
 import { brandInitScript } from "./brand-client.mjs";
+import { CATEGORIES, categoryPages, pillarFile } from "./categories.mjs";
 
 const require = createRequire(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -69,9 +70,7 @@ if (!chromium) {
 const ROUTES = [
   "index.html", // home
   "library.html", // catalog
-  "claude-code.html", // article (category=claude → real guide)
-  "hermes.html", // article (category=hermes → real guide)
-  "codex.html", // article (category=codex → real guide)
+  // + one listing page per category (site/<pillar>.html), from categoryRoutes()
   "about.html", // about page
   "guide.html", // standalone guide (variantC → first real guide)
   "mobile.html", // mobile home (#home default)
@@ -87,6 +86,20 @@ async function loadGuides() {
   // eslint-disable-next-line no-new-func
   new Function("window", js)(sandbox.window);
   return sandbox.window.__GF_GUIDES || [];
+}
+
+// Category listing pages: derived from the taxonomy + content (categoryPages: a
+// declared pillar with ≥1 guide and its site/<pillar>.html), never a hand list — a
+// category whose guides moved away loses its page, a pillar without a site file is
+// reported instead of silently 404-ing. Desktop file + mobile hash (= category id).
+async function categoryRoutes() {
+  const guides = await loadGuides();
+  for (const c of CATEGORIES) {
+    if (c.pillar && !existsSync(join(SITE, pillarFile(c.pillar))) && guides.some((g) => g.cat === c.id)) {
+      console.warn(`  WARN  prerender: category «${c.id}» declares pillar ${c.pillar} but site/${pillarFile(c.pillar)} is missing — no listing page`);
+    }
+  }
+  return categoryPages(guides).map((c) => ({ id: c.id, file: c.file }));
 }
 
 // Per-guide pages: site/guides/<slug>.html → build/guides/<slug>.html.
@@ -113,9 +126,7 @@ async function guideRoutes() {
 const MOBILE_ROUTES = [
   { hash: "home", out: "m/index.html", depth: 1 },
   { hash: "library", out: "m/library.html", depth: 1 },
-  { hash: "claude", out: "m/claude-code.html", depth: 1 },
-  { hash: "hermes", out: "m/hermes.html", depth: 1 },
-  { hash: "codex", out: "m/codex.html", depth: 1 },
+  // + { hash: <category id>, out: m/<pillar>.html } per category listing page
   { hash: "about", out: "m/about.html", depth: 1 },
 ];
 
@@ -302,6 +313,13 @@ async function runBuildGuidesData() {
   });
 }
 
+async function runNode(script, label) {
+  await new Promise((resolve, reject) => {
+    const p = spawn("node", [join(__dirname, script)], { cwd: ROOT, stdio: "inherit" });
+    p.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`${label} (${script}) FAILED — exit ${code}`))));
+  });
+}
+
 async function runBuildSeo() {
   // After all HTML is snapshotted into build/, add the SEO / GEO / agent layer:
   // <head> JSON-LD + meta/canonical injection (design-safe, body untouched),
@@ -412,7 +430,8 @@ async function main() {
     await copyAssets();
     await fs.mkdir(join(BUILD, "guides"), { recursive: true });
 
-    const allRoutes = [...ROUTES, ...(await guideRoutes())];
+    const catRoutes = await categoryRoutes();
+    const allRoutes = [...ROUTES, ...catRoutes.map((c) => c.file), ...(await guideRoutes())];
 
     const results = [];
     // ---- desktop pass (1440px viewport, asset refs untouched) ----
@@ -447,7 +466,11 @@ async function main() {
     // Same mobile.html shell, different URL hash → different mobile screen.
     await fs.mkdir(join(BUILD, "m"), { recursive: true });
     await fs.mkdir(join(BUILD, "m", "guides"), { recursive: true });
-    const mobileRoutes = [...MOBILE_ROUTES, ...(await mobileGuideRoutes())];
+    const mobileRoutes = [
+      ...MOBILE_ROUTES,
+      ...catRoutes.map((c) => ({ hash: c.id, out: `m/${c.file}`, depth: 1 })),
+      ...(await mobileGuideRoutes()),
+    ];
     for (const r of mobileRoutes) {
       const page = await browser.newPage({
         viewport: { width: 390, height: 844 },
@@ -478,6 +501,10 @@ async function main() {
     // SEO/GEO/agent layer runs last: it post-processes the just-written build/
     // HTML <head>s (desktop + mobile) and emits the sidecar files into build/.
     await runBuildSeo();
+
+    // Category gate: every category page must be a real listing (its own H1 — never
+    // a guide's — guide cards, CollectionPage) and no crumb/nav link may 404.
+    await runNode("verify-category-pages.mjs", "category-page check");
 
     // Cache-busting: append ?v=<content-hash> to every CSS/JS asset ref in the
     // emitted HTML. Cloudflare caches *.css with max-age (overriding origin

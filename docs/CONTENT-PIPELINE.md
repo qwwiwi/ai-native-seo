@@ -27,7 +27,10 @@ article fails the build).
   sourced fact-sheet (claim → citation).
 - **M2 · Draft** — гайд: exact verified commands/configs + code. статья: read the
   TOV first, human language, zero code/prompts. Fill full frontmatter
-  (`description` REQUIRED, `type`, `last_verified_at`, `verified_sources`). **Add
+  (`description` REQUIRED, `type`, `last_verified_at`, `verified_sources`; для новых гайдов —
+  `author` REQUIRED, `proofs:` — доказательства, не видные в разметке; `updated_at` двигать
+  только вместе с правкой текста — показанная дата всё равно берётся из git, см. «Правила Google»;
+  slug — в `SLUG_CAT`, REQUIRED). **Add
   1-2 in-text cross-links** to related guides/articles (`[descriptive anchor](/guides/<slug>/)`,
   not in the first paragraph — see CONTENT.md «Cross-links») → recirculation.
   `inline()` converts any `[text](url)` → clickable `<a>` (internal same-tab /
@@ -51,12 +54,18 @@ article fails the build).
   `/guides/` кросс-ссылки — **FAIL для ВСЕХ non-stub гайдов** (`LEGACY_NO_CROSSLINK` ПУСТ
   с бэкфилла PR #95; re-add slug только как временное исключение). Для `type:article`
   FAIL также на любой callout-блок (`:::prompt/:::tip/:::note/:::warning/:::cta`).
+  **FAIL (все гайды):** `updated_at` сдвинут без правки текста / slug не в `SLUG_CAT` или ≠
+  имени файла / категория из `SLUG_CAT` не объявлена в `categories[]` бренда / внутренняя
+  ссылка без `/` на конце (`/guides/<slug>` или `.html`) / title = H1 страницы категории.
+  **FAIL (гайды с `published_at` ≥ 2026-10-18):** правила Google — см. раздел «Правила Google» ниже.
   **WARN:** нет `## FAQ` / <2 FAQ Q&A / title без
-  года / тело изменилось без `updated_at` / нет ссылки на pillar. `npm run lint` для
-  проверки без сборки. Fail = no publish.
-- **M6 · Publish** — `build-guides-data.mjs` → `prerender.mjs` → `build-seo.mjs` →
-  deploy via `scripts/deploy.sh` (rsync + chown + **авто-пинг IndexNow** Яндекс+Bing;
-  see `DEPLOY.md`) → пинг Кельтасу на Вебмастер-переобход (**намеренно agent-owned** —
+  года / тело изменилось без `updated_at` / нет ссылки на pillar / пересечение с существующим
+  гайдом (риск каннибализации). `npm run lint` для проверки без сборки; `scripts/check.sh` —
+  линт + `npm test` + сборка + `npm run verify`. Fail = no publish.
+- **M6 · Publish** — `scripts/check.sh` (линт + тесты + `build-guides-data.mjs` → `prerender.mjs` →
+  `build-seo.mjs` → `verify-*`) → PR → merge → deploy via `scripts/deploy.sh` (сухой прогон с
+  гейтом удалений + бэкап + rsync + chown + **авто-пинг IndexNow** Яндекс+Bing + **сабмит
+  sitemap в Google Search Console**; see `DEPLOY.md`) → пинг Кельтасу на Вебмастер-переобход (**намеренно agent-owned** —
   креды Вебмастера у Кельтаса/другая машина+квота, это не пробел пайплайна). Cover via
   the `codex-image` / `edgelab-covers` skills — **ВСЕ обложки = ЧБ-сцена + lime-overlay
   (`--mono`)**; гайд vs статья отличаются ТОЛЬКО лого (гайд — лого инструмента, статья —
@@ -71,6 +80,41 @@ article fails the build).
   **Рециркуляция и дочитываемость — теперь измеряемые метрики успеха материала.**
 - **M7 · Freshness (cron)** — `last_verified_at` + TTL (pricing 14d, cli/api 30d,
   article 90d, evergreen 180d) → flag stale → back to M3.
+
+## Правила Google (обязательны для каждого нового гайда с 2026-10-18)
+
+Google ранжирует «полезный контент от людей» (helpful content + E-E-A-T: опыт, экспертиза,
+авторитетность, доверие). `content-lint.mjs` FAIL-ит гайд с `published_at` ≥ 2026-10-18, если
+правило не выполнено; более старые гайды — бэклог (линт печатает сводку `INFO … бэклог`, по строке на правило).
+
+| Правило | Как выполнить | Чем проверяется |
+|---|---|---|
+| **Ответ в первых 2–3 абзацах** | до первого `##` — ≥250 знаков прозы, которая прямо отвечает на запрос из title и содержит его ключевое слово (без «в этой статье мы расскажем»). Нишевые слова, которые есть почти в каждом title, бренд задаёт в `content.titleStopWords` | lint FAIL |
+| **≥3 доказательства из первых рук** | реальные скриншоты, видео, реальные команды (` ```bash `), таблицы со своими данными; что не видно в разметке — списком `proofs:` во frontmatter | lint FAIL `мало доказательств` |
+| **Строка «Проверено на …»** | в теле: `Проверено на <инструмент версия>, <ОС>, <месяц> <год>.` | lint FAIL |
+| **Раскрытие помощи ИИ** | в теле: `Текст подготовлен с помощью ИИ и проверен автором.` | lint FAIL |
+| **Автор** | frontmatter `author:` → JSON-LD `author` | lint FAIL |
+| **Настоящая дата** | `published_at`/`updated_at` — ISO, не в будущем, updated ≥ published | lint FAIL |
+| **Не двигать дату без правки текста** | `updated_at` меняем только вместе с правкой текста; сдвиг даты без единого изменённого слова — FAIL (и до коммита, и после). В sitemap дата двинется только при существенной правке (≥30 слов) или с `[content]` в теме коммита для мелкого фактического фикса | lint FAIL для ВСЕХ гайдов |
+| **Честный lastmod** | ничего не делать руками: sitemap/`dateModified`/«Обновлено» берут дату последнего коммита, который реально менял текст (`scripts/content-dates.mjs`) | `verify-google-seo.mjs` |
+| **Авто-перелинковка и sitemap** | добавить slug в `SLUG_CAT` (иначе FAIL); блок «Все материалы» на desktop и `/m/` и sitemap генерятся сами | lint FAIL + `verify-google-seo.mjs` |
+| **Канонические ссылки** | внутренние ссылки только `/guides/<slug>/` со слэшем (без слэша/`.html` — 301) | lint FAIL для ВСЕХ гайдов |
+| **Не тонкий, не дубль** | ≥600 слов; перед написанием проверь кластер — если тема уже есть, расширяй существующий гайд, а не плоди второй | lint FAIL (тонкий) / WARN (пересечение) |
+| **UTM гайда** | ничего не делать: каждая ссылка воронки на странице несёт `utm_content=<funnel.utm.contentPrefix><slug>` своего гайда | `verify-google-seo.mjs` |
+
+### Чего НЕ делать (Google наказывает или игнорирует)
+
+- **Не покупать ссылки** и не меняться ими (link schemes) — ручные санкции.
+- **Не генерить гайды ИИ пачками** (scaled content abuse): ИИ помогает писать, но каждый гайд —
+  с собственным опытом, командами, скриншотами и проверкой человеком. «20 гайдов за вечер» =
+  риск санкции на весь домен.
+- **Не публиковать полные копии на сторонних площадках.** Дубль на чужом домене может обогнать
+  оригинал. Снаружи — короткий анонс или выжимка со ссылкой на гайд, не полный текст.
+- **Не использовать Google Indexing API** для гайдов — он только для JobPosting/BroadcastEvent.
+  Сигнал на переобход в Google = sitemap с честным `lastmod`, который `deploy.sh` сабмитит в
+  Search Console сам. Ручной «Запросить индексирование» в GSC — только для отдельных важных URL.
+- **Не двигать даты ради «свежести»** и не дописывать год в title без обновления содержимого.
+- **Не прятать FAQ/текст** (скрытая разметка = риск ручной санкции; FAQ только видимый).
 
 ## Source model (validation)
 

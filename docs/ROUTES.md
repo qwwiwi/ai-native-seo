@@ -10,11 +10,19 @@
 |---|---|---|
 | `/` | Главная | геро «AI ПОРТАЛ» + секции «Статьи» и «Гайды». |
 | `/library/` | Все гайды | каталог гайдов + поиск ⌘K + фасеты/уровни/пагинация. |
-| `/claude-code/` | Статья Claude Code | категория `claude`. |
-| `/hermes/` | Статья Hermes | категория `hermes`. |
-| `/codex/` | Статья Codex | категория `codex`. |
+| `/claude-code/` | Листинг категории Claude Code | категория `claude`. |
+| `/hermes/` | Листинг категории Hermes | категория `hermes`. |
+| `/codex/` | Листинг категории Codex | категория `codex`. |
 | `/guides/<slug>/` | Страница гайда | конкретный гайд (TL;DR, шаги, FAQ, changelog). |
 | `/about/` | О проекте | автор, сообщество, канал, реквизиты. |
+
+Страница категории — **листинг, а не гайд** (раньше на URL категории рендерилась копия её первого
+гайда — дубль для Google): H1 = имя категории, интро (`categories[].description` бренда или
+авто-текст из гайдов: число + заголовки), карточка со ссылкой на каждый гайд категории, meta
+description = то же интро, JSON-LD `CollectionPage` + `ItemList`. Набор страниц категорий не
+фиксирован: роут существует, только если в `categories[]` объявлен `pillar`, в категории ≥1 гайд
+и есть `site/<pillar-slug>.html` (`categoryPages()` в `scripts/categories.mjs`; см. `WHITE-LABEL.md`).
+Таблица выше — демо-таксономия. Проверка — `scripts/verify-category-pages.mjs`.
 
 Навигация в шапке связывает все страницы; переключатель темы — на каждой.
 
@@ -44,6 +52,9 @@ workflow/сравнение). Деталь — в `docs/` и в SEO/agent-чек
 ## Серверные правила (Caddy)
 
 - Отдавать реальные файлы с верным `Content-Type`; неизвестный путь → `404` (не индекс).
+- Один URL на страницу: `/x`, `/x.html`, `/guides/x(.html)` → 301 на `/x/`, `/guides/x/`;
+  `/index.html` → `/`; `/guides(/|.html)` → `/library/`; `.md`-двойники, `llms*.txt`,
+  `search-index.json`, `/.well-known/*` — `X-Robots-Tag: noindex` (см. `DEPLOY.md`).
 - `Link`-заголовки на `/`.
 - Markdown-negotiation: `Accept: text/markdown` → отдать `.md`-двойник.
 - Корректный `Last-Modified`.

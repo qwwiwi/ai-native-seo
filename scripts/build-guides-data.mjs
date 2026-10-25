@@ -16,7 +16,7 @@ import { dirname, join } from "node:path";
 import { promises as fs, existsSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { honestDates } from "./content-dates.mjs";
-import { CATEGORIES, CAT_NAMES, DEFAULT_CAT } from "./categories.mjs";
+import { CATEGORIES, CAT_NAMES, DEFAULT_CAT, categoryPages } from "./categories.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -386,6 +386,16 @@ function computeRelated(guides, limit = 4) {
   }
 }
 
+// window.__GF_CATS: { id, name, count, page?, description? } in taxonomy order.
+function gfCats(guides) {
+  const pages = Object.fromEntries(categoryPages(guides).map((p) => [p.id, p]));
+  return CATEGORIES.map((c) => {
+    const p = pages[c.id];
+    const count = guides.filter((g) => g.cat === c.id).length;
+    return p ? { id: c.id, name: c.name, count, page: p.pillar, description: p.description } : { id: c.id, name: c.name, count };
+  });
+}
+
 function fmtDate(iso) {
   const months = [
     "января", "февраля", "марта", "апреля", "мая", "июня",
@@ -467,9 +477,11 @@ async function main() {
   const js =
     banner +
     "window.__GF_GUIDES = " + JSON.stringify(guides) + ";\n" +
-    // brand taxonomy in display order — gf-app.jsx builds the catalog facets and the
-    // «Все материалы» index from it (only categories that actually have guides).
-    "window.__GF_CATS = " + JSON.stringify(CATEGORIES) + ";\n" +
+    // brand taxonomy in display order — gf-app.jsx builds the catalog facets, the
+    // «Все материалы» index, the nav and the category listing pages from it.
+    // `page` is set ONLY for a category whose landing page exists (categoryPages:
+    // pillar + guides + site file), so no link can point at a 404 pillar.
+    "window.__GF_CATS = " + JSON.stringify(gfCats(guides)) + ";\n" +
     "window.__GF_GUIDE_BY_SLUG = (function(){var m={};window.__GF_GUIDES.forEach(function(g){m[g.slug]=g;});return m;})();\n";
 
   await fs.writeFile(OUT, js, "utf8");

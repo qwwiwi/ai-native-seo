@@ -6,7 +6,10 @@
   "description": "blog.edgelab.space — 1:1 React prototype (site/) prerendered to static, SEO-ready HTML (build/).",
   "scripts": {
     "lint": "node scripts/content-lint.mjs",
-    "build": "node scripts/prerender.mjs"
+    "build": "node scripts/prerender.mjs",
+    "verify": "node scripts/verify-google-seo.mjs && node scripts/verify-category-pages.mjs && node scripts/verify-related.mjs && node scripts/verify-readthrough-analytics.mjs",
+    "test": "node --test tests/google-seo.test.mjs",
+    "check": "scripts/check.sh"
   },
   "comments": {
     "prerender": "scripts/prerender.mjs uses Playwright + system Chrome to render the client-side React prototype to static HTML. It relies on the GLOBAL Playwright install at /opt/homebrew/lib/node_modules/playwright (no local node_modules needed). If running elsewhere, install Playwright: `npm i -g playwright` (or `npm i -D playwright`) and ensure Google Chrome is present (channel:'chrome'). python3 must be on PATH (used to serve site/ over local HTTP during the render).",

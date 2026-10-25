@@ -20,7 +20,7 @@ import { dirname, join } from "node:path";
 import { promises as fs, existsSync, readFileSync } from "node:fs";
 import crypto from "node:crypto";
 import brand from "./brand.mjs";
-import { CATEGORIES, CAT_PILLAR } from "./categories.mjs";
+import { categoryPages } from "./categories.mjs";
 import { brandScriptTag, brandTokensStyle, brandFontsHref, BRAND_SCRIPT_ID } from "./brand-client.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -58,10 +58,13 @@ const PAGE_ROUTES = [
   { file: "index.html", url: "/", kind: "home" },
   { file: "library.html", url: "/library/", kind: "library" },
   { file: "about.html", url: "/about/", kind: "about" },
-  { file: "claude-code.html", url: "/claude-code/", kind: "category", catName: "Claude Code" },
-  { file: "hermes.html", url: "/hermes/", kind: "category", catName: "Hermes" },
-  { file: "codex.html", url: "/codex/", kind: "category", catName: "Codex" },
+  // + one { kind: "category" } route per category listing page, appended in main()
+  // from the content (categoryPages: declared pillar + ≥1 guide + site file).
 ];
+// Category listing pages that exist (scripts/categories.mjs categoryPages) — the
+// single list behind the category routes, the BreadcrumbList middle crumb and the
+// sitemap pillar URLs. Filled in main() once the guides are loaded.
+let CAT_PAGES = [];
 
 // ---- helpers ---------------------------------------------------------------
 function loadGuides() {
@@ -259,13 +262,14 @@ function techArticleGraph(guide, mdxBody) {
       // Full visible text → enables «Дочитывания»/«Доскроллы» in Content Analytics.
       articleBody: mdToPlainText(mdxBody),
     },
-    // Category crumb → the category's OWN pillar page (brand.config.json
-    // `categories[].pillar`). A category without a pillar gets no middle crumb: two
-    // crumbs on the same /library/ URL (the old shape) is a broken trail for Google.
+    // Category crumb → the category's OWN listing page, only when that page exists
+    // (CAT_PAGES). A category without one gets no middle crumb: a crumb to a 404
+    // pillar, or two crumbs on the same /library/ URL (the old shape), is a broken
+    // trail for Google.
     breadcrumbNode([
       { name: "Главная", url: `${BASE}/` },
       { name: "Гайды", url: `${BASE}/library/` },
-      ...(CAT_PILLAR[guide.cat] ? [{ name: guide.catName, url: `${BASE}${CAT_PILLAR[guide.cat]}` }] : []),
+      ...CAT_PAGES.filter((c) => c.id === guide.cat).map((c) => ({ name: c.name, url: `${BASE}${c.pillar}` })),
       { name: guide.title, url },
     ]),
   ];
@@ -365,7 +369,7 @@ function pageGraph(route, guides) {
     };
   }
   if (route.kind === "category") {
-    const inCat = guides.filter((g) => g.catName === route.catName);
+    const inCat = guides.filter((g) => g.cat === route.catId);
     return {
       "@context": "https://schema.org",
       "@graph": [
@@ -374,6 +378,7 @@ function pageGraph(route, guides) {
           "@type": "CollectionPage",
           "@id": `${url}#collection`,
           name: `${route.catName} — гайды ${SITE_NAME}`,
+          description: route.description,
           url,
           inLanguage: LANG,
           isPartOf: { "@id": `${BASE}/#website` },
@@ -702,11 +707,11 @@ function sitemapXml(guides) {
   urls.push({ loc: `${BASE}/`, lastmod: latest });
   urls.push({ loc: `${BASE}/library/`, lastmod: latest });
   urls.push({ loc: `${BASE}/about/`, lastmod: ABOUT_LASTMOD });
-  // Category pillar pages — from the brand taxonomy (brand.config.json `categories`),
-  // only those the prerender actually produced (no 404 URLs in the sitemap).
-  for (const c of CATEGORIES) {
-    if (!c.pillar) continue;
-    if (!existsSync(join(BUILD, `${c.pillar.replace(/^\/|\/$/g, "")}.html`))) {
+  // Category listing pages (CAT_PAGES: pillar + guides + site file), only those the
+  // prerender actually produced (no 404 URLs in the sitemap). lastmod = the newest
+  // guide listed on the page (max of its children), like home/library above.
+  for (const c of CAT_PAGES) {
+    if (!existsSync(join(BUILD, c.file))) {
       console.warn(`  WARN  sitemap: pillar ${c.pillar} of category «${c.id}» has no prerendered page — skipped`);
       continue;
     }
@@ -913,28 +918,26 @@ function pageMeta(route) {
       description: `${SITE_NAME} — закрытое AI-комьюнити: библиотека, живой чат, эфиры по средам.`,
     };
   }
-  // category
+  // category: the listing intro (brand `categories[].description`, else built from
+  // the listed guides) — not one «Гайды по теме X» template shared by every category.
   return {
     metaTitle: `${route.catName} — гайды ${SITE_NAME}`,
     title: `${route.catName} — гайды ${SITE_NAME}`,
-    description: `Гайды по теме «${route.catName}» от ${SITE_NAME}.`,
+    description: route.description,
   };
 }
 
 // Mobile twins: built file under build/m/ → the DESKTOP route it shares a
 // canonical/JSON-LD with. The desktop twin of m/index.html is home ("/").
-const MOBILE_PAGE_ROUTES = PAGE_ROUTES.map((r) => ({
-  ...r,
-  // m/index.html mirrors index.html (home); the rest keep the same basename.
-  file: `m/${r.file}`,
-}));
+// m/index.html mirrors index.html (home); the rest keep the same basename.
+const mobilePageRoutes = () => PAGE_ROUTES.map((r) => ({ ...r, file: `m/${r.file}` }));
 
 // Inject the desktop canonical + matching JSON-LD into every mobile page. The
 // mobile HTML body is never touched — only the <head> — so the mobile design
 // stays 1:1. mdTwin is omitted on mobile (the .md twin lives once, at /guides/).
 async function injectMobile(guides) {
   // mobile static pages (home/library/about/3 categories).
-  for (const route of MOBILE_PAGE_ROUTES) {
+  for (const route of mobilePageRoutes()) {
     const htmlPath = join(BUILD, route.file);
     try {
       await fs.access(htmlPath);
@@ -990,6 +993,10 @@ async function injectMobile(guides) {
 // ---- main ------------------------------------------------------------------
 async function main() {
   const guides = await loadGuides();
+  CAT_PAGES = categoryPages(guides);
+  for (const c of CAT_PAGES) {
+    PAGE_ROUTES.push({ file: c.file, url: c.pillar, kind: "category", catId: c.id, catName: c.name, description: c.description });
+  }
 
   // 1) Per-guide <head> injection + markdown twin.
   for (const g of guides) {
@@ -1107,7 +1114,7 @@ async function main() {
   console.log("\nSEO layer emitted:");
   console.log(`  ${guides.length} guide <head> blocks injected (JSON-LD TechArticle + BreadcrumbList)`);
   console.log(`  ${PAGE_ROUTES.length} static-page <head> blocks injected`);
-  console.log(`  ${MOBILE_PAGE_ROUTES.length} + ${guides.length} mobile <head> blocks injected (canonical → desktop twin)`);
+  console.log(`  ${mobilePageRoutes().length} +${guides.length} mobile <head> blocks injected (canonical → desktop twin)`);
   console.log(`  ${offCanonical.length} off-canonical pages brand-injected (${offCanonical.join(", ")})`);
   console.log(`  ${guides.length} markdown twins → build/guides/<slug>.md`);
   console.log(`  robots.txt, sitemap.xml (${(sitemap.match(/<url>/g) || []).length} urls), llms.txt, search-index.json (${guides.length} guides)`);

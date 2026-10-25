@@ -5,7 +5,7 @@
 #
 # Usage:
 #   npm run build && scripts/deploy.sh                    # deploy + IndexNow all sitemap URLs
-#   scripts/deploy.sh https://blog.edgelab.space/guides/<slug>/   # ...only changed URLs
+#   scripts/deploy.sh https://<domain.site>/guides/<slug>/   # ...only changed URLs
 # Env: BLOG_HOST overrides the ssh target (default = Thrall reaches the public IP;
 #      from Mac mini use the Tailscale address: BLOG_HOST=root@100.116.42.100).
 #      BLOG_WEBROOT overrides the remote webroot — white-label deploys (M1 step 5)
@@ -70,6 +70,12 @@ node "$ROOT/scripts/indexnow-submit.mjs" "$@"
 # is its recrawl signal. Non-fatal: the site is already live; a missing key or a
 # permission error prints the exact manual step instead of failing the deploy.
 echo "[deploy] Google Search Console: submit sitemap"
-node "$ROOT/scripts/gsc-submit-sitemap.mjs" || echo "[deploy] WARN: GSC sitemap submit did not complete (see the [gsc] lines above)"
+GSC_RC=0
+node "$ROOT/scripts/gsc-submit-sitemap.mjs" || GSC_RC=$?
+case "$GSC_RC" in
+  0) ;;
+  2) echo "[deploy] GSC submit skipped (no analytics.gscProperty / service-account key configured)" ;;
+  *) echo "[deploy] WARN: GSC sitemap submit did not complete (exit $GSC_RC, see the [gsc] lines above)" ;;
+esac
 
 echo "[deploy] done. Yandex.Webmaster recrawl of changed URLs is a separate step (docs/DEPLOY.md)."

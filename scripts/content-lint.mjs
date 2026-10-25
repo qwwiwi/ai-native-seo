@@ -209,6 +209,12 @@ async function main() {
     const isStub = String(fm.stub).toLowerCase() === "true";
     const F = (msg) => fails.push(`${slug}: ${msg}`);
     const W = (msg) => warns.push(`${slug}: ${msg}`);
+    // A category listing page's H1 is the category name (gf-app CategoryPage). A guide
+    // with the SAME H1 makes the two pages indistinguishable for Google (the old bug
+    // rendered the first guide on the category URL) — FAIL, rename one of them.
+    const sameAsCat = Object.entries(CAT_PILLAR).find(([id]) =>
+      String(CAT_NAMES[id] || "").trim().toLowerCase() === String(fm.title || "").trim().toLowerCase());
+    if (sameAsCat) F(`H1/title «${fm.title}» совпадает с H1 страницы категории ${sameAsCat[1]} — переименуй гайд`);
 
     // Link checks run on PROSE only (strip fenced code) so a `/guides/x/` shown
     // inside a code example isn't mistaken for a real link (Codex M2).
