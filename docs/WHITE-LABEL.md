@@ -14,7 +14,21 @@
    главной: eyebrow, title, description, metaDescription (SEO), CTA, hero-картинка — БЕЗ этого блока
    главная останется с текстами EdgeLab-ниши), `mcpIdentity.*`,
    `analytics.*` (свои Metrika/GA4 ids; `indexNowKey` — свой ключ),
-   `assets.*` (og-default + логотип бренда).
+   `assets.*` (og-default + логотип бренда), `categories[]` и `content.*`
+   (см. таблицу ниже).
+
+   Новые ключи (все опциональны, проходят валидатор `scripts/brand.mjs`):
+
+   | Ключ | Что |
+   |---|---|
+   | `analytics.gscProperty` | GSC property: `sc-domain:<domain>` или `https://…/`. Без него сабмит sitemap в Google пропускается (`docs/DEPLOY.md`) |
+   | `analytics.gscKeyPath` | путь к JSON-ключу сервис-аккаунта (`~/` раскрывается). Ключ хранится вне репо, **не коммитить** |
+   | `funnel.utm.source` / `.campaign` / `.contentPrefix` | UTM ссылок воронки; `utm_content=<contentPrefix><slug>` своей страницы |
+   | `categories[]` | `{ id, name, pillar?, description? }` — таксономия; порядок = порядок фасетов и «Все материалы». Без ключа — таксономия демо-контента |
+   | `categories[].pillar` | URL страницы-листинга категории (`/claude-code/`); без него — нет средней крошки и своей страницы |
+   | `categories[].description` | интро + meta description листинга; без него строится из гайдов (число + заголовки) |
+   | `content.titleStopWords` | нишевые слова, которые есть почти в каждом title (не считаются «ответом» в правиле лида) |
+   | `content.hubPages` | `/path/` хаб-страниц, которые засчитываются как ссылка на pillar для категорий без своего pillar |
 
 2. **Ассеты.** Положи в `site/images/` свой `og-default` и `logo` (пути из
    `assets.*`), свои обложки в `site/covers/<slug>.webp`. Hero-изображение
@@ -43,6 +57,22 @@
    ```
    Бэкап перед rsync --delete делается автоматически от `BLOG_WEBROOT`.
 
+## Категории и pillar-страницы
+
+Страница категории — **листинг** (H1 = имя категории, интро, карточка-ссылка на каждый гайд,
+JSON-LD `CollectionPage` + `ItemList`), не копия гайда. Какие страницы существуют, решает
+`categoryPages()` в `scripts/categories.mjs`: объявлен `pillar` + в категории ≥1 гайд +
+есть файл `site/<pillar-slug>.html`. От этого списка строятся prerender-роуты, sitemap,
+средняя крошка `BreadcrumbList` и навигация/футеры — ни одна ссылка не ведёт на 404.
+
+Добавить pillar под новый бренд:
+1. в `categories[]` задать `pillar: "/<slug>/"` (и, по желанию, `description`);
+2. скопировать `site/claude-code.html` → `site/<slug>.html` и поменять в нём
+   `window.__GF_CAT = "<id>"`;
+3. замапить гайды на `<id>` в `SLUG_CAT` (`scripts/build-guides-data.mjs`).
+
+Гейт — `scripts/verify-category-pages.mjs` (в конце сборки и в `npm run verify`).
+
 ## Проверка отсутствия утечек дефолта
 
 После сборки под чужой бренд:
@@ -66,4 +96,7 @@ grep -ril "edgelab" build/ | grep -v guides-data && echo LEAK || echo CLEAN
 | UI-фолбэки | `site/gf-app.jsx` (константы из `__BRAND`, EdgeLab = фолбэк) |
 | Токены стиля | `site/gf-styles.css` (единый `:root`, `--accent`/`--font-*`) |
 | Обложки | `tools/covers/compose-cover.mjs` + `cover-template.html` |
-| Деплой | `scripts/deploy.sh` (`BLOG_HOST`, `BLOG_WEBROOT`) |
+| Таксономия / страницы категорий | `scripts/categories.mjs` (`categoryPages()`) + `site/<pillar>.html` |
+| Деплой | `scripts/deploy.sh` (`BLOG_HOST`, `BLOG_WEBROOT`, `ALLOW_DELETE`) |
+| Google Search Console | `scripts/gsc-submit-sitemap.mjs` (`analytics.gscProperty`, `analytics.gscKeyPath`) |
+| Caddy vhost | `deploy/caddy-blog-block.txt` (бренд-специфичны строка сайта + `root`) |

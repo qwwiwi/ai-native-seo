@@ -17,9 +17,10 @@
 
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { promises as fs, existsSync, readFileSync } from "node:fs";
+import { promises as fs, existsSync, readFileSync, realpathSync } from "node:fs";
 import crypto from "node:crypto";
 import brand from "./brand.mjs";
+import { categoryPages } from "./categories.mjs";
 import { brandScriptTag, brandTokensStyle, brandFontsHref, BRAND_SCRIPT_ID } from "./brand-client.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -57,10 +58,13 @@ const PAGE_ROUTES = [
   { file: "index.html", url: "/", kind: "home" },
   { file: "library.html", url: "/library/", kind: "library" },
   { file: "about.html", url: "/about/", kind: "about" },
-  { file: "claude-code.html", url: "/claude-code/", kind: "category", catName: "Claude Code" },
-  { file: "hermes.html", url: "/hermes/", kind: "category", catName: "Hermes" },
-  { file: "codex.html", url: "/codex/", kind: "category", catName: "Codex" },
+  // + one { kind: "category" } route per category listing page, appended in main()
+  // from the content (categoryPages: declared pillar + ≥1 guide + site file).
 ];
+// Category listing pages that exist (scripts/categories.mjs categoryPages) — the
+// single list behind the category routes, the BreadcrumbList middle crumb and the
+// sitemap pillar URLs. Filled in main() once the guides are loaded.
+let CAT_PAGES = [];
 
 // ---- helpers ---------------------------------------------------------------
 function loadGuides() {
@@ -228,6 +232,15 @@ function faqFromBody(mdxBody) {
   return out;
 }
 
+// frontmatter `author:` (required for new guides by content-lint) wins; the brand
+// author is the fallback. The brand author URL belongs to the brand author only —
+// another author has no known page, so the URL is omitted rather than misattributed.
+// The visible byline (site/gf-app.jsx Byline) names the same person.
+function articleAuthor(guide) {
+  const name = guide.author || AUTHOR_NAME;
+  return name === AUTHOR_NAME ? { "@type": "Person", name, url: AUTHOR_URL } : { "@type": "Person", name };
+}
+
 function techArticleGraph(guide, mdxBody) {
   const url = guideUrl(guide.slug);
   const graph = [
@@ -244,7 +257,7 @@ function techArticleGraph(guide, mdxBody) {
       dateModified: guide.updatedAt || undefined,
       inLanguage: LANG,
       keywords: (guide.tags || []).join(", ") || undefined,
-      author: { "@type": "Person", name: AUTHOR_NAME, url: AUTHOR_URL },
+      author: articleAuthor(guide),
       publisher: { "@id": `${BASE}/#organization` },
       mainEntityOfPage: { "@type": "WebPage", "@id": url },
       url,
@@ -256,10 +269,14 @@ function techArticleGraph(guide, mdxBody) {
       // Full visible text → enables «Дочитывания»/«Доскроллы» in Content Analytics.
       articleBody: mdToPlainText(mdxBody),
     },
+    // Category crumb → the category's OWN listing page, only when that page exists
+    // (CAT_PAGES). A category without one gets no middle crumb: a crumb to a 404
+    // pillar, or two crumbs on the same /library/ URL (the old shape), is a broken
+    // trail for Google.
     breadcrumbNode([
       { name: "Главная", url: `${BASE}/` },
       { name: "Гайды", url: `${BASE}/library/` },
-      { name: guide.catName, url: `${BASE}/library/` },
+      ...CAT_PAGES.filter((c) => c.id === guide.cat).map((c) => ({ name: c.name, url: `${BASE}${c.pillar}` })),
       { name: guide.title, url },
     ]),
   ];
@@ -359,7 +376,7 @@ function pageGraph(route, guides) {
     };
   }
   if (route.kind === "category") {
-    const inCat = guides.filter((g) => g.catName === route.catName);
+    const inCat = guides.filter((g) => g.cat === route.catId);
     return {
       "@context": "https://schema.org",
       "@graph": [
@@ -368,6 +385,7 @@ function pageGraph(route, guides) {
           "@type": "CollectionPage",
           "@id": `${url}#collection`,
           name: `${route.catName} — гайды ${SITE_NAME}`,
+          description: route.description,
           url,
           inLanguage: LANG,
           isPartOf: { "@id": `${BASE}/#website` },
@@ -573,6 +591,11 @@ async function injectHead(filePath, opts) {
 // payload a white-label build would show EdgeLab fallbacks there. Inject ONLY the
 // brand head (fonts href swap + window.__BRAND + :root tokens) — no canonical/JSON-LD.
 // Idempotent, same guards as injectHead.
+//
+// SEO: no canonical means a crawler that reaches guide.html / mobile.html sees a
+// duplicate of a real page with no self-declared address → duplicate content. They
+// are excluded from the canonical pass on purpose, so the only correct signal is an
+// explicit `robots: noindex` (they stay reachable, just not indexable).
 async function injectBrandOnly(filePath) {
   if (!existsSync(filePath)) return false;
   let html = await fs.readFile(filePath, "utf8");
@@ -582,6 +605,9 @@ async function injectBrandOnly(filePath) {
       /<\/head>/i,
       `${brandScriptTag(brand)}\n${brandTokensStyle(brand)}\n</head>`,
     );
+  }
+  if (!/<meta\s+name=["']robots["']/i.test(html)) {
+    html = html.replace(/<\/head>/i, `<meta name="robots" content="noindex">\n</head>`);
   }
   await fs.writeFile(filePath, html, "utf8");
   return true;
@@ -682,25 +708,33 @@ function sitemapXml(guides) {
   const ABOUT_LASTMOD = "2026-06-01"; // about page is near-static — bump on real edits
   // empty/mis-categorized category page → fall back to `latest`, NOT build-`today`
   // (which would reintroduce the false-freshness this fix removes — Codex M345).
-  const catUpd = (cat) => maxUpd(guides.filter((g) => g.catName === cat), latest);
+  const catUpd = (id) => maxUpd(guides.filter((g) => g.cat === id), latest);
   const urls = [];
   // Static pages.
-  urls.push({ loc: `${BASE}/`, lastmod: latest, changefreq: "weekly", priority: "1.0" });
-  urls.push({ loc: `${BASE}/library/`, lastmod: latest, changefreq: "weekly", priority: "0.9" });
-  urls.push({ loc: `${BASE}/about/`, lastmod: ABOUT_LASTMOD, changefreq: "monthly", priority: "0.5" });
-  urls.push({ loc: `${BASE}/claude-code/`, lastmod: catUpd("Claude Code"), changefreq: "weekly", priority: "0.8" });
-  urls.push({ loc: `${BASE}/hermes/`, lastmod: catUpd("Hermes"), changefreq: "weekly", priority: "0.7" });
-  urls.push({ loc: `${BASE}/codex/`, lastmod: catUpd("Codex"), changefreq: "weekly", priority: "0.7" });
+  urls.push({ loc: `${BASE}/`, lastmod: latest });
+  urls.push({ loc: `${BASE}/library/`, lastmod: latest });
+  urls.push({ loc: `${BASE}/about/`, lastmod: ABOUT_LASTMOD });
+  // Category listing pages (CAT_PAGES: pillar + guides + site file), only those the
+  // prerender actually produced (no 404 URLs in the sitemap). lastmod = the newest
+  // guide listed on the page (max of its children), like home/library above.
+  for (const c of CAT_PAGES) {
+    if (!existsSync(join(BUILD, c.file))) {
+      console.warn(`  WARN  sitemap: pillar ${c.pillar} of category «${c.id}» has no prerendered page — skipped`);
+      continue;
+    }
+    urls.push({ loc: `${BASE}${c.pillar}`, lastmod: catUpd(c.id) });
+  }
   // Guides.
   for (const g of guides) {
     const lastmod = (g.updatedAt || "").slice(0, 10) || today;
-    urls.push({ loc: guideUrl(g.slug), lastmod, changefreq: "monthly", priority: "0.8" });
+    urls.push({ loc: guideUrl(g.slug), lastmod });
   }
   const body = urls
     .map(
       (u) =>
-        `  <url>\n    <loc>${u.loc}</loc>\n    <lastmod>${u.lastmod}</lastmod>\n` +
-        `    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`,
+        // No <changefreq>/<priority>: Google ignores both; <lastmod> is the only
+        // signal it uses, and only while it stays honest (scripts/content-dates.mjs).
+        `  <url>\n    <loc>${u.loc}</loc>\n    <lastmod>${u.lastmod}</lastmod>\n  </url>`,
     )
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
@@ -891,28 +925,26 @@ function pageMeta(route) {
       description: `${SITE_NAME} — закрытое AI-комьюнити: библиотека, живой чат, эфиры по средам.`,
     };
   }
-  // category
+  // category: the listing intro (brand `categories[].description`, else built from
+  // the listed guides) — not one «Гайды по теме X» template shared by every category.
   return {
     metaTitle: `${route.catName} — гайды ${SITE_NAME}`,
     title: `${route.catName} — гайды ${SITE_NAME}`,
-    description: `Гайды по теме «${route.catName}» от ${SITE_NAME}.`,
+    description: route.description,
   };
 }
 
 // Mobile twins: built file under build/m/ → the DESKTOP route it shares a
 // canonical/JSON-LD with. The desktop twin of m/index.html is home ("/").
-const MOBILE_PAGE_ROUTES = PAGE_ROUTES.map((r) => ({
-  ...r,
-  // m/index.html mirrors index.html (home); the rest keep the same basename.
-  file: `m/${r.file}`,
-}));
+// m/index.html mirrors index.html (home); the rest keep the same basename.
+const mobilePageRoutes = () => PAGE_ROUTES.map((r) => ({ ...r, file: `m/${r.file}` }));
 
 // Inject the desktop canonical + matching JSON-LD into every mobile page. The
 // mobile HTML body is never touched — only the <head> — so the mobile design
 // stays 1:1. mdTwin is omitted on mobile (the .md twin lives once, at /guides/).
 async function injectMobile(guides) {
   // mobile static pages (home/library/about/3 categories).
-  for (const route of MOBILE_PAGE_ROUTES) {
+  for (const route of mobilePageRoutes()) {
     const htmlPath = join(BUILD, route.file);
     try {
       await fs.access(htmlPath);
@@ -968,6 +1000,10 @@ async function injectMobile(guides) {
 // ---- main ------------------------------------------------------------------
 async function main() {
   const guides = await loadGuides();
+  CAT_PAGES = categoryPages(guides);
+  for (const c of CAT_PAGES) {
+    PAGE_ROUTES.push({ file: c.file, url: c.pillar, kind: "category", catId: c.id, catName: c.name, description: c.description });
+  }
 
   // 1) Per-guide <head> injection + markdown twin.
   for (const g of guides) {
@@ -1037,7 +1073,8 @@ async function main() {
 
   // 4) Sidecar files.
   await fs.writeFile(join(BUILD, "robots.txt"), robotsTxt(), "utf8");
-  await fs.writeFile(join(BUILD, "sitemap.xml"), sitemapXml(guides), "utf8");
+  const sitemap = sitemapXml(guides);
+  await fs.writeFile(join(BUILD, "sitemap.xml"), sitemap, "utf8");
   await fs.writeFile(join(BUILD, "llms.txt"), llmsTxt(guides), "utf8");
   await fs.writeFile(join(BUILD, "llms-full.txt"), llmsFullTxt(guides), "utf8");
   await fs.writeFile(join(BUILD, "search-index.json"), searchIndexJson(guides), "utf8");
@@ -1084,15 +1121,20 @@ async function main() {
   console.log("\nSEO layer emitted:");
   console.log(`  ${guides.length} guide <head> blocks injected (JSON-LD TechArticle + BreadcrumbList)`);
   console.log(`  ${PAGE_ROUTES.length} static-page <head> blocks injected`);
-  console.log(`  ${MOBILE_PAGE_ROUTES.length} + ${guides.length} mobile <head> blocks injected (canonical → desktop twin)`);
+  console.log(`  ${mobilePageRoutes().length} +${guides.length} mobile <head> blocks injected (canonical → desktop twin)`);
   console.log(`  ${offCanonical.length} off-canonical pages brand-injected (${offCanonical.join(", ")})`);
   console.log(`  ${guides.length} markdown twins → build/guides/<slug>.md`);
-  console.log(`  robots.txt, sitemap.xml (${guides.length + 6} urls), llms.txt, search-index.json (${guides.length} guides)`);
+  console.log(`  robots.txt, sitemap.xml (${(sitemap.match(/<url>/g) || []).length} urls), llms.txt, search-index.json (${guides.length} guides)`);
   console.log(`  .well-known/{mcp/server-card.json, api-catalog, agent-skills/index.json}`);
   console.log(`  sample twin ${guides[0].slug}.md: ${sampleTwin.length} bytes, sha256 ${sha256(sampleTwin).slice(0, 12)}…`);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Run only as a script (prerender spawns it); an import (tests) gets the helpers.
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
+
+export { techArticleGraph };

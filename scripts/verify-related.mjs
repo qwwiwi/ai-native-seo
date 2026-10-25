@@ -38,14 +38,22 @@ const list = async (d) => { try { return (await readdir(d)).filter((f) => f.ends
 const guidePages = [...(await list(join(BUILD, "guides"))), ...(await list(join(BUILD, "m", "guides")))];
 for (const f of guidePages) {
   const html = await readFile(f, "utf8");
-  if (!/class="gp-related"/.test(html)) fail(`${f.replace(BUILD, "build")}: missing gp-related block`);
+  const rel = f.replace(BUILD, "build");
+  const at = html.indexOf('class="gp-related"');
+  if (at < 0) { fail(`${rel}: missing gp-related block`); continue; }
+  // Contextual placement: right after the article text, ahead of the CTA banner.
+  const body = html.indexOf('class="gp-article-body"');
+  const cta = html.search(/class="(cta-dark|m-cta)[ "]/);
+  if (body >= 0 && at < body) fail(`${rel}: gp-related sits before the article body`);
+  if (cta >= 0 && at > cta) fail(`${rel}: gp-related sits after the CTA (must follow the article text)`);
 }
-// Pure non-article pages must NOT carry the block. (Category landings like
-// claude-code/codex/hermes render a representative GUIDE via the article path, so
-// they legitimately show «Похожие» — they are not in this list.)
+// Pure non-article pages must NOT carry the block — the category listing pages
+// included (they used to render a copy of their first guide, block and all).
+const catFiles = (win.__GF_CATS || []).filter((c) => c.page).map((c) => `${c.page.replace(/^\/|\/$/g, "")}.html`);
 const PURE_STATIC = [
   "index.html", "library.html", "about.html", "mobile.html",
   "m/index.html", "m/library.html", "m/about.html",
+  ...catFiles, ...catFiles.map((f) => `m/${f}`),
 ];
 for (const rel of PURE_STATIC) {
   try {

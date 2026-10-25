@@ -19,9 +19,49 @@ markdown-двойники `guides/<slug>.md`.
   Изменения DNS — глобальным ключом CF (CF_API_TOKEN read-only, см. историю инфры).
 - **TLS:** Caddy авто-LE (HTTP-01 проходит через CF). CF SSL = Full.
 
+## Перед деплоем: локальный гейт `scripts/check.sh`
+
+CI нет — гейт запускается руками перед каждым push/деплоем:
+
+```bash
+scripts/check.sh              # content-lint → npm test → npm run build → npm run verify
+scripts/check.sh --no-build   # то же без сборки — проверки по уже собранному build/
+```
+
+- `npm test` — `node --test tests/google-seo.test.mjs` (юнит/регрессии, без сети).
+- `npm run verify` — пост-билд проверки: `verify-google-seo.mjs` (sitemap/lastmod, «Все
+  материалы», UTM своего slug, крошки), `verify-category-pages.mjs` (страницы категорий —
+  листинги, все ссылки/крошки резолвятся), `verify-related.mjs`, `verify-readthrough-analytics.mjs`.
+- Без `build/sitemap.xml` вариант `--no-build` падает — сначала собрать.
+
+## Где собирать
+
+Где угодно, где есть Node + Playwright + Chromium/Chrome и python3 (см. `package.json`
+`comments.prerender`). Если пре-рендер упал с `TimeoutError` на `networkidle` — это сеть:
+перезапусти `npm run build` один раз.
+
 ## Деплой
 
-**Канонический способ — `scripts/deploy.sh`** (бэкап + rsync + chown + авто-пинг IndexNow):
+### Гейт удалений: сухой прогон (встроен в `deploy.sh`)
+
+`deploy.sh` синхронизирует webroot **с `--delete`**: всё, чего нет в `build/`, на проде
+удаляется. Поэтому первым шагом скрипт делает сухой прогон:
+
+```bash
+rsync -azn --delete --checksum --out-format='%i %n' build/ "$BLOG_HOST:$BLOG_WEBROOT/"
+```
+
+- Есть хоть одна строка `*deleting` → деплой **останавливается ДО бэкапа и rsync** и печатает
+  список. `ALLOW_DELETE=1 scripts/deploy.sh` — только если удаление запланировано.
+- Ошибка ssh/rsync в сухом прогоне тоже обрывает деплой (fail-closed: сбой не читается как
+  «удалений нет»).
+
+Типовая причина незапланированных удалений: собрана ветка без свежих материалов из `main`
+(слияние `main` сделано локально и не отправлено туда, где идёт сборка). Деплой такой сборки
+снёс бы с прода чужие свежие гайды вместе с обложками — смёржи `main` и пересобери.
+
+**Канонический способ — `scripts/deploy.sh`** (сухой прогон с гейтом удалений → бэкап → rsync →
+chown → авто-пинг IndexNow → сабмит sitemap в Google Search Console):
 ```bash
 npm run build                                   # линт-гейт + пре-рендер + SEO-слой
 scripts/deploy.sh                               # деплой + IndexNow по всем URL sitemap
@@ -55,6 +95,62 @@ node scripts/indexnow-submit.mjs --dry-run            # проверить paylo
 
 Шлёт на `yandex.com/indexnow` + `api.indexnow.org` (Bing/общий). Запускать с Thrall
 (сеть к движкам есть). 200/202 = принято. Ключ менять не нужно — он стабилен в репо.
+
+## Google Search Console (sitemap на каждый деплой)
+
+IndexNow — только Яндекс/Bing; у Google IndexNow нет, а Indexing API разрешён только для
+JobPosting/BroadcastEvent (для гайдов — **запрещён**). Сигнал Google на переобход = `sitemap.xml`
+с честным `lastmod`. Поэтому `deploy.sh` после rsync и IndexNow запускает
+`scripts/gsc-submit-sitemap.mjs`: `sitemaps.submit` (Search Console API) на
+`<domain.site>/sitemap.xml`, затем читает статус обратно (lastSubmitted / lastDownloaded / errors).
+
+Конфиг — данные бренда:
+
+| Ключ | Что |
+|---|---|
+| `analytics.gscProperty` | property: `sc-domain:<domain>` или URL-prefix `https://…/` |
+| `analytics.gscKeyPath` | путь к JSON-ключу сервис-аккаунта (Full/Owner на property); `~/` раскрывается. Ключ **не коммитится** и не печатается |
+
+Env-оверрайды: `GSC_SA_KEY` (путь к ключу), `GSC_SITE` (property), `GSC_SITEMAP` (URL sitemap).
+
+| Exit | Значение | Что делает `deploy.sh` |
+|---|---|---|
+| 0 | засабмичено | — |
+| 2 | нет property или нет ключа — пропуск | печатает «GSC submit skipped», деплой продолжается |
+| 3 | 401/403 — у сервис-аккаунта нет прав | скрипт печатает ручной шаг для владельца property; деплой — WARN |
+| 1 | прочая ошибка | WARN, деплой не падает (сайт уже выложен) |
+
+```bash
+node scripts/gsc-submit-sitemap.mjs --dry-run   # проверить конфиг и наличие ключа, без сети
+node scripts/gsc-submit-sitemap.mjs --status    # только статус sitemap
+node scripts/gsc-submit-sitemap.mjs --top 10    # топ страниц /guides/ по кликам за 28 дней
+```
+
+## Редиректы и noindex (один URL на страницу)
+
+Всё ниже — в `deploy/caddy-blog-block.txt` (vhost блога). White-label: бренд-специфичны только
+строка сайта (хост из `domain.site`) и `root` (= `BLOG_WEBROOT`).
+
+| Откуда | Куда / что |
+|---|---|
+| `/x`, `/x.html`, `/guides/x`, `/guides/x.html` | 301 → `/x/`, `/guides/x/` (query/UTM сохраняется) |
+| `/index.html` | 301 → `/` |
+| `/guides`, `/guides/`, `/guides.html` | 301 → `/library/` |
+| `/guides/*.md` (markdown-двойники), `/llms.txt`, `/llms-full.txt`, `/search-index.json`, `/.well-known/*` | `X-Robots-Tag: noindex` (доступны агентам, вне индекса; канон — HTML) |
+| несуществующий путь | настоящий 404 со стилизованной `/404.html` (`handle_errors`) |
+
+Off-canonical оболочки `guide.html` и `mobile.html` получают от `build-seo.mjs`
+`<meta name="robots" content="noindex">`. Caddy 2.6 не знает шорткода `{?query}` — поэтому
+у каждого редиректа пара матчеров «с query / без».
+
+Свап блока на хосте:
+```bash
+python3 deploy/swap-caddy-block.py [block-file] [site-marker]
+#   block-file  по умолчанию /tmp/caddy-blog-block.txt (копия deploy/caddy-blog-block.txt)
+#   site-marker по умолчанию — первая строка блока («<host> {»)
+#   CADDYFILE=<path> — другой Caddyfile (тесты); бэкап .bak.blogfix.<ts> рядом с ним
+caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile && systemctl reload caddy
+```
 
 ## Caddy vhost (ключевое — device-serving + agent-readiness)
 
