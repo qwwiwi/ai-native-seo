@@ -44,8 +44,28 @@ const FUNNEL_HOST = (() => {
   try { return new URL(FUNNEL_URL).hostname.replace(/^www\./, ""); } catch (_) { return "edgelab.space"; }
 })();
 
-const SLUG = "claude-code-setup";
-const utm = (m) => `${FUNNEL_URL}/?utm_source=guides&utm_medium=${m}&utm_campaign=space&utm_content=${SLUG}`;
+// Funnel UTM is brand data (funnel.utm in the brand config): source / campaign /
+// the utm_content prefix of the blog touchpoint.
+const UTM = FUNNEL.utm || {};
+const UTM_SOURCE = UTM.source || "blog";
+const UTM_CAMPAIGN = UTM.campaign || "blog";
+const UTM_PREFIX = UTM.contentPrefix != null ? UTM.contentPrefix : "blog-";
+// The page this link is baked into — a guide's own slug, else the route name
+// (home/library/claude/…). It goes into utm_content as «<prefix><page>», the same
+// value the click-time forwarder below sets, so a guide → registration stays
+// attributable even when JS does not run (crawlers, copy-link, middle-click).
+// Before this fix a hardcoded "claude-code-setup" was baked into EVERY page.
+const PAGE_SLUG = (() => {
+  try {
+    const w = window;
+    // Mobile shell routes by hash first (the prerender and interactive mobile.html),
+    // then the baked __GF_ROUTE — the same order as the mobile mount-switch below.
+    const hash = w.__GF_VIEW === "mobile" ? (w.location.hash || "").replace("#", "") : "";
+    const s = w.__GF_SLUG || hash || w.__GF_ROUTE || w.__GF_CAT || w.__GF_VIEW || "home";
+    return String(s).replace(/[^a-z0-9-]/gi, "").toLowerCase() || "home";
+  } catch (_) { return "home"; }
+})();
+const utm = (m) => `${FUNNEL_URL}/?utm_source=${UTM_SOURCE}&utm_medium=${m}&utm_campaign=${UTM_CAMPAIGN}&utm_content=${UTM_PREFIX}${PAGE_SLUG}`;
 
 // UTM forwarding (prince 2026-06-17): a visitor who arrives from the IG bio link
 // (?utm_source=instagram…) must keep that origin across blog navigation, and the
@@ -83,10 +103,10 @@ function wireUTMForward() {
     try { inb = JSON.parse(sessionStorage.getItem("els_inbound_utm") || "null"); } catch (_) {}
     // First-touch origin (e.g. instagram/bio) when the visitor arrived with a UTM,
     // else organic «guides». utm_content carries the blog touchpoint either way.
-    u.searchParams.set("utm_source", inb && inb.utm_source ? inb.utm_source : "guides");
+    u.searchParams.set("utm_source", inb && inb.utm_source ? inb.utm_source : UTM_SOURCE);
     if (inb && inb.utm_medium) u.searchParams.set("utm_medium", inb.utm_medium);
-    u.searchParams.set("utm_campaign", "space");
-    u.searchParams.set("utm_content", "blog-" + touch);
+    u.searchParams.set("utm_campaign", UTM_CAMPAIGN);
+    u.searchParams.set("utm_content", UTM_PREFIX + touch);
     if (inb && inb.utm_term) u.searchParams.set("utm_term", inb.utm_term);
     a.href = u.toString();
   }, true);
@@ -167,11 +187,15 @@ function Byline({ meta }) {
 
 const TG = (BRAND.telegram && BRAND.telegram.channelUrl) || "https://t.me/dashi_agent";
 const TG_NAME = (BRAND.telegram && BRAND.telegram.channelName) || "Записки AI-энтузиаста";
-// funnel docs + landing anchors — готовые ссылки с edgelab.space (footer)
+// funnel docs + landing links (footer)
 const DOC_PRIVACY = (FUNNEL.docs && FUNNEL.docs.privacy) || "https://drive.google.com/file/d/1hUEZbJBCdTQcpBqy_OAd8EupZwY9Xpx1/view";
 const DOC_OFFER = (FUNNEL.docs && FUNNEL.docs.offer) || "https://drive.google.com/file/d/1i6XeY6SMcuA4uYYxBVpxEPN_EI_AeIH6/view";
-const ELS_STREAMS = `${FUNNEL_URL}/#streams`;
-const ELS_COMMUNITY = `${FUNNEL_URL}/#community`;
+// Footer «streams» / «chat» lead to the landing itself with a placement UTM: a
+// #streams / #community anchor is not guaranteed to exist on a brand's landing
+// (a rebuilt landing dropped them → dead links), and the tag keeps the click
+// attributable even when the click-time forwarder does not run.
+const ELS_STREAMS = utm("footer-streams");
+const ELS_COMMUNITY = utm("footer-community");
 function TelegramButton() {
   return (
     <a className="tg-link" href={TG} target="_blank" rel="noopener"><span className="d"></span>Телеграм-канал</a>
@@ -479,12 +503,18 @@ function Changelog({ items }) {
 const GF_GUIDES = (typeof window !== "undefined" && window.__GF_GUIDES) || [];
 const GF_BY_SLUG = (typeof window !== "undefined" && window.__GF_GUIDE_BY_SLUG) || {};
 // Category → display name + the guides that belong to it (preserve source order).
-const GUIDE_CATS = [
-  { id: "claude", name: "Claude Code" },
-  { id: "design", name: "Дизайн" },
-  { id: "memory", name: "База знаний" },
-  { id: "video", name: "Автоматизация видео" },
-];
+// Derived from the data (NOT hand-maintained): every category that has at least one
+// guide shows up — a hand list silently dropped mcp/hermes/codex guides from the
+// catalog facets. Order = the brand taxonomy (window.__GF_CATS, written into
+// guides-data.js from the brand config); an undeclared category goes last.
+const GF_CATS = (typeof window !== "undefined" && window.__GF_CATS) || [];
+const GUIDE_CATS = (() => {
+  const seen = new Map();
+  for (const g of GF_GUIDES) if (g.cat && !seen.has(g.cat)) seen.set(g.cat, g.catName || g.cat);
+  const order = GF_CATS.map((c) => c.id);
+  const rank = (id) => (order.indexOf(id) < 0 ? order.length : order.indexOf(id));
+  return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => rank(a.id) - rank(b.id));
+})();
 function guidesInCat(catId) {
   return GF_GUIDES.filter((g) => g.cat === catId);
 }
@@ -754,6 +784,40 @@ function RelatedGuides({ items }) {
   );
 }
 
+// «Все материалы» — the cross-guide index at the bottom of every guide/article page
+// (desktop AND the /m/ mobile twin, which Google indexes mobile-first). Generated
+// from window.__GF_GUIDES at build time, grouped by category — a new guide appears
+// on every page automatically, no hand-maintained list. Stubs are excluded; the
+// current page is shown as plain text (no self-link).
+function GuideIndex({ current }) {
+  const groups = GUIDE_CATS
+    .map((c) => ({ ...c, items: GF_GUIDES.filter((g) => g.cat === c.id && !g.stub) }))
+    .filter((c) => c.items.length > 0);
+  if (!groups.length) return null;
+  return (
+    <nav className="gp-guide-index" aria-label="Все материалы">
+      <h2>Все материалы</h2>
+      <div className="gi-groups">
+        {groups.map((c) => (
+          <div key={c.id} className="gi-group">
+            <div className="gi-h">{c.name} <span>{c.items.length}</span></div>
+            <ul>
+              {c.items.map((g) => (
+                <li key={g.slug}>
+                  {g.slug === current
+                    ? <span className="gi-cur">{g.title}</span>
+                    : <a href={GUIDE_HREF(g.slug)}>{g.title}</a>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <a className="gi-all" href={P("library")}>Каталог всех гайдов →</a>
+    </nav>
+  );
+}
+
 function Content({ article, cta, rich }) {
   const a = article || ARTICLES.claude;
   const isReal = !!a.bodyHtml; // real MDX-backed guide vs demo JSX article
@@ -804,6 +868,8 @@ function Content({ article, cta, rich }) {
         <a className="gp-navcard" href={navHref(a.docsnavSlugs && a.docsnavSlugs[0])}><div className="l">← Предыдущий</div><div className="t">{a.docsnav[0]}</div></a>
         <a className="gp-navcard next" href={navHref(a.docsnavSlugs && a.docsnavSlugs[1])}><div className="l">Следующий →</div><div className="t">{a.docsnav[1]}</div></a>
       </div>
+
+      {isReal && <GuideIndex current={a.slug} />}
     </div>
   );
 }
@@ -1034,6 +1100,7 @@ function MobileArticle({ article, initialTheme }) {
           </div>
           )}
           <RelatedGuides items={a.related} />
+          {a.bodyHtml && <GuideIndex current={a.slug} />}
         </div>
         <div className="m-footer">
           <Logo />

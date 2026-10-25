@@ -83,6 +83,41 @@ function validateBrand(b) {
     fail("analytics.metrika", a.metrika, "must be a numeric counter id");
   if (a.indexNowKey !== undefined && !/^[A-Za-z0-9-]{8,64}$/.test(String(a.indexNowKey)))
     fail("analytics.indexNowKey", a.indexNowKey, "must be 8-64 alphanumeric chars");
+  // Google Search Console property the deploy submits the sitemap to: a domain
+  // property (sc-domain:example.com) or a URL-prefix property (https://…/).
+  if (a.gscProperty !== undefined && !/^(sc-domain:[a-z0-9.-]+|https:\/\/[^"'<>\\ ]+\/)$/.test(String(a.gscProperty)))
+    fail("analytics.gscProperty", a.gscProperty, "must be sc-domain:<domain> or an https://…/ URL-prefix property");
+  // Path to the service-account key FILE (never the key itself; never committed).
+  if (a.gscKeyPath !== undefined && (typeof a.gscKeyPath !== "string" || !a.gscKeyPath.trim()))
+    fail("analytics.gscKeyPath", a.gscKeyPath, "must be a non-empty file path");
+  // UTM of the funnel links (baked into the HTML + the click-time forwarder).
+  const utm = (b.funnel && b.funnel.utm) || {};
+  for (const k of ["source", "medium", "campaign", "contentPrefix"]) {
+    if (utm[k] !== undefined && !/^[A-Za-z0-9_.-]*$/.test(String(utm[k])))
+      fail(`funnel.utm.${k}`, utm[k], "must be letters/digits/_ . - only");
+  }
+  // Taxonomy (scripts/categories.mjs): ids are URL/class-safe, pillars site-relative.
+  if (b.categories !== undefined) {
+    if (!Array.isArray(b.categories)) fail("categories", b.categories, "must be an array of {id, name, pillar?}");
+    const ids = new Set();
+    b.categories.forEach((c, i) => {
+      const k = `categories[${i}]`;
+      if (!c || !/^[a-z][a-z0-9-]*$/.test(String(c.id))) fail(`${k}.id`, c && c.id, "must be a lowercase id (a-z, 0-9, -)");
+      if (ids.has(c.id)) fail(`${k}.id`, c.id, "must be unique");
+      ids.add(c.id);
+      if (typeof c.name !== "string" || !c.name.trim() || /[<>]/.test(c.name))
+        fail(`${k}.name`, c.name, "must be a non-empty string without < >");
+      if (c.pillar !== undefined && !/^\/[a-z0-9][a-z0-9-]*\/$/.test(String(c.pillar)))
+        fail(`${k}.pillar`, c.pillar, "must be a site-relative /slug/ path");
+    });
+  }
+  const content = b.content || {};
+  if (content.titleStopWords !== undefined &&
+      (!Array.isArray(content.titleStopWords) || content.titleStopWords.some((w) => typeof w !== "string")))
+    fail("content.titleStopWords", content.titleStopWords, "must be an array of strings");
+  if (content.hubPages !== undefined &&
+      (!Array.isArray(content.hubPages) || content.hubPages.some((p) => !/^\/[a-z0-9/-]*\/$/.test(String(p)))))
+    fail("content.hubPages", content.hubPages, "must be an array of site-relative /path/ strings");
   return b;
 }
 

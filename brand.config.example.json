@@ -38,6 +38,11 @@
     "docs": {
       "privacy": "https://acme.example/privacy",
       "offer": "https://acme.example/offer"
+    },
+    "utm": {
+      "source": "blog",
+      "campaign": "acme",
+      "contentPrefix": "blog-"
     }
   },
   "mcpIdentity": {
@@ -64,7 +69,9 @@
   "analytics": {
     "ga4": "G-ACME000001",
     "metrika": "99999999",
-    "indexNowKey": "acmeacmeacmeacmeacmeacmeacme0001"
+    "indexNowKey": "acmeacmeacmeacmeacmeacmeacme0001",
+    "gscProperty": "sc-domain:acme.example",
+    "gscKeyPath": "~/.secrets/acme/gsc-service-account.json"
   },
   "assets": {
     "og": "images/og-default.png",
@@ -78,5 +85,51 @@
     "ctaHref": "/library/",
     "heroImage": "/covers/_home-hero.webp",
     "metaDescription": "Practical guides on AI agents, tooling and automation. Acme Digest."
+  },
+  "categories": [
+    {
+      "id": "claude",
+      "name": "Claude Code",
+      "pillar": "/claude-code/"
+    },
+    {
+      "id": "ai",
+      "name": "AI agents & models"
+    },
+    {
+      "id": "mcp",
+      "name": "MCP servers"
+    },
+    {
+      "id": "memory",
+      "name": "Knowledge bases"
+    },
+    {
+      "id": "design",
+      "name": "Design"
+    },
+    {
+      "id": "video",
+      "name": "Video automation"
+    },
+    {
+      "id": "hermes",
+      "name": "Hermes",
+      "pillar": "/hermes/"
+    },
+    {
+      "id": "codex",
+      "name": "Codex",
+      "pillar": "/codex/"
+    }
+  ],
+  "content": {
+    "titleStopWords": [
+      "claude",
+      "code"
+    ],
+    "hubPages": [
+      "/guides/claude-code-skills/"
+    ]
   }
 }

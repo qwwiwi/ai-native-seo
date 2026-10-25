@@ -20,6 +20,7 @@ import { dirname, join } from "node:path";
 import { promises as fs, existsSync, readFileSync } from "node:fs";
 import crypto from "node:crypto";
 import brand from "./brand.mjs";
+import { CATEGORIES, CAT_PILLAR } from "./categories.mjs";
 import { brandScriptTag, brandTokensStyle, brandFontsHref, BRAND_SCRIPT_ID } from "./brand-client.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -244,7 +245,9 @@ function techArticleGraph(guide, mdxBody) {
       dateModified: guide.updatedAt || undefined,
       inLanguage: LANG,
       keywords: (guide.tags || []).join(", ") || undefined,
-      author: { "@type": "Person", name: AUTHOR_NAME, url: AUTHOR_URL },
+      // frontmatter `author:` (required for new guides by content-lint) wins; the
+      // brand author is the fallback. The URL stays the brand author page.
+      author: { "@type": "Person", name: guide.author || AUTHOR_NAME, url: AUTHOR_URL },
       publisher: { "@id": `${BASE}/#organization` },
       mainEntityOfPage: { "@type": "WebPage", "@id": url },
       url,
@@ -256,10 +259,13 @@ function techArticleGraph(guide, mdxBody) {
       // Full visible text → enables «Дочитывания»/«Доскроллы» in Content Analytics.
       articleBody: mdToPlainText(mdxBody),
     },
+    // Category crumb → the category's OWN pillar page (brand.config.json
+    // `categories[].pillar`). A category without a pillar gets no middle crumb: two
+    // crumbs on the same /library/ URL (the old shape) is a broken trail for Google.
     breadcrumbNode([
       { name: "Главная", url: `${BASE}/` },
       { name: "Гайды", url: `${BASE}/library/` },
-      { name: guide.catName, url: `${BASE}/library/` },
+      ...(CAT_PILLAR[guide.cat] ? [{ name: guide.catName, url: `${BASE}${CAT_PILLAR[guide.cat]}` }] : []),
       { name: guide.title, url },
     ]),
   ];
@@ -573,6 +579,11 @@ async function injectHead(filePath, opts) {
 // payload a white-label build would show EdgeLab fallbacks there. Inject ONLY the
 // brand head (fonts href swap + window.__BRAND + :root tokens) — no canonical/JSON-LD.
 // Idempotent, same guards as injectHead.
+//
+// SEO: no canonical means a crawler that reaches guide.html / mobile.html sees a
+// duplicate of a real page with no self-declared address → duplicate content. They
+// are excluded from the canonical pass on purpose, so the only correct signal is an
+// explicit `robots: noindex` (they stay reachable, just not indexable).
 async function injectBrandOnly(filePath) {
   if (!existsSync(filePath)) return false;
   let html = await fs.readFile(filePath, "utf8");
@@ -582,6 +593,9 @@ async function injectBrandOnly(filePath) {
       /<\/head>/i,
       `${brandScriptTag(brand)}\n${brandTokensStyle(brand)}\n</head>`,
     );
+  }
+  if (!/<meta\s+name=["']robots["']/i.test(html)) {
+    html = html.replace(/<\/head>/i, `<meta name="robots" content="noindex">\n</head>`);
   }
   await fs.writeFile(filePath, html, "utf8");
   return true;
@@ -682,25 +696,33 @@ function sitemapXml(guides) {
   const ABOUT_LASTMOD = "2026-06-01"; // about page is near-static — bump on real edits
   // empty/mis-categorized category page → fall back to `latest`, NOT build-`today`
   // (which would reintroduce the false-freshness this fix removes — Codex M345).
-  const catUpd = (cat) => maxUpd(guides.filter((g) => g.catName === cat), latest);
+  const catUpd = (id) => maxUpd(guides.filter((g) => g.cat === id), latest);
   const urls = [];
   // Static pages.
-  urls.push({ loc: `${BASE}/`, lastmod: latest, changefreq: "weekly", priority: "1.0" });
-  urls.push({ loc: `${BASE}/library/`, lastmod: latest, changefreq: "weekly", priority: "0.9" });
-  urls.push({ loc: `${BASE}/about/`, lastmod: ABOUT_LASTMOD, changefreq: "monthly", priority: "0.5" });
-  urls.push({ loc: `${BASE}/claude-code/`, lastmod: catUpd("Claude Code"), changefreq: "weekly", priority: "0.8" });
-  urls.push({ loc: `${BASE}/hermes/`, lastmod: catUpd("Hermes"), changefreq: "weekly", priority: "0.7" });
-  urls.push({ loc: `${BASE}/codex/`, lastmod: catUpd("Codex"), changefreq: "weekly", priority: "0.7" });
+  urls.push({ loc: `${BASE}/`, lastmod: latest });
+  urls.push({ loc: `${BASE}/library/`, lastmod: latest });
+  urls.push({ loc: `${BASE}/about/`, lastmod: ABOUT_LASTMOD });
+  // Category pillar pages — from the brand taxonomy (brand.config.json `categories`),
+  // only those the prerender actually produced (no 404 URLs in the sitemap).
+  for (const c of CATEGORIES) {
+    if (!c.pillar) continue;
+    if (!existsSync(join(BUILD, `${c.pillar.replace(/^\/|\/$/g, "")}.html`))) {
+      console.warn(`  WARN  sitemap: pillar ${c.pillar} of category «${c.id}» has no prerendered page — skipped`);
+      continue;
+    }
+    urls.push({ loc: `${BASE}${c.pillar}`, lastmod: catUpd(c.id) });
+  }
   // Guides.
   for (const g of guides) {
     const lastmod = (g.updatedAt || "").slice(0, 10) || today;
-    urls.push({ loc: guideUrl(g.slug), lastmod, changefreq: "monthly", priority: "0.8" });
+    urls.push({ loc: guideUrl(g.slug), lastmod });
   }
   const body = urls
     .map(
       (u) =>
-        `  <url>\n    <loc>${u.loc}</loc>\n    <lastmod>${u.lastmod}</lastmod>\n` +
-        `    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`,
+        // No <changefreq>/<priority>: Google ignores both; <lastmod> is the only
+        // signal it uses, and only while it stays honest (scripts/content-dates.mjs).
+        `  <url>\n    <loc>${u.loc}</loc>\n    <lastmod>${u.lastmod}</lastmod>\n  </url>`,
     )
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
@@ -1037,7 +1059,8 @@ async function main() {
 
   // 4) Sidecar files.
   await fs.writeFile(join(BUILD, "robots.txt"), robotsTxt(), "utf8");
-  await fs.writeFile(join(BUILD, "sitemap.xml"), sitemapXml(guides), "utf8");
+  const sitemap = sitemapXml(guides);
+  await fs.writeFile(join(BUILD, "sitemap.xml"), sitemap, "utf8");
   await fs.writeFile(join(BUILD, "llms.txt"), llmsTxt(guides), "utf8");
   await fs.writeFile(join(BUILD, "llms-full.txt"), llmsFullTxt(guides), "utf8");
   await fs.writeFile(join(BUILD, "search-index.json"), searchIndexJson(guides), "utf8");
@@ -1087,7 +1110,7 @@ async function main() {
   console.log(`  ${MOBILE_PAGE_ROUTES.length} + ${guides.length} mobile <head> blocks injected (canonical → desktop twin)`);
   console.log(`  ${offCanonical.length} off-canonical pages brand-injected (${offCanonical.join(", ")})`);
   console.log(`  ${guides.length} markdown twins → build/guides/<slug>.md`);
-  console.log(`  robots.txt, sitemap.xml (${guides.length + 6} urls), llms.txt, search-index.json (${guides.length} guides)`);
+  console.log(`  robots.txt, sitemap.xml (${(sitemap.match(/<url>/g) || []).length} urls), llms.txt, search-index.json (${guides.length} guides)`);
   console.log(`  .well-known/{mcp/server-card.json, api-catalog, agent-skills/index.json}`);
   console.log(`  sample twin ${guides[0].slug}.md: ${sampleTwin.length} bytes, sha256 ${sha256(sampleTwin).slice(0, 12)}…`);
 }

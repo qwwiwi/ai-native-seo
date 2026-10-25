@@ -1,4 +1,6 @@
 blog.edgelab.space {
+	# White-label: the site line and `root` are the only brand-specific lines — set
+	# them to your domain.site host and BLOG_WEBROOT (docs/DEPLOY.md).
 	root * /var/www/blog-edgelab-space
 	encode gzip
 	header X-Frame-Options "SAMEORIGIN"
@@ -11,6 +13,14 @@ blog.edgelab.space {
 	header @mdfiles Content-Type "text/markdown; charset=utf-8"
 	@llms path /llms.txt
 	header @llms Content-Type "text/markdown; charset=utf-8"
+
+	# SEO: agent-readable twins/sidecars duplicate the HTML pages 1:1 — keep them
+	# crawlable for agents but OUT of the search index (canonical = the HTML page).
+	# Covers /guides/<slug>.md twins, /llms.txt, /llms-full.txt, /search-index.json
+	# and the agent sidecars under /.well-known/ (MCP card, api-catalog, skills).
+	header @mdfiles X-Robots-Tag "noindex"
+	@agentsidecars path /llms.txt /llms-full.txt /search-index.json /.well-known/*
+	header @agentsidecars X-Robots-Tag "noindex"
 
 	# Link header on homepage
 	@home path /
@@ -29,6 +39,38 @@ blog.edgelab.space {
 	@mobile header_regexp ua User-Agent "(?i)(android|iphone|ipod|iemobile|blackberry|opera mini|mobile)"
 
 	route {
+		# SEO: ONE URL per page (2026-10-18). /x, /x.html, /guides/x, /guides/x.html
+		# all used to answer 200 with the same content (duplicates in Google). Now they
+		# 301 to the canonical trailing-slash URL /x/ and keep the query (UTM).
+		# /index.html → /, and /guides(/) → /library/ (the catalog). Assets, /m/*,
+		# .well-known and other dotted files never match (no extension but .html).
+		# Caddy 2.6 has no {?query} shorthand → a with-query and a bare variant each.
+		@idx_q {
+			path /index.html
+			expression {query} != ""
+		}
+		redir @idx_q /?{query} permanent
+		@idx path /index.html
+		redir @idx / permanent
+		@guidesroot_q {
+			path /guides /guides/ /guides.html
+			expression {query} != ""
+		}
+		redir @guidesroot_q /library/?{query} permanent
+		@guidesroot path /guides /guides/ /guides.html
+		redir @guidesroot /library/ permanent
+		@canon_q {
+			path_regexp canonq ^/((?:guides/)?[a-z0-9][a-z0-9-]*)(?:\.html)?$
+			not path /404.html /mobile.html
+			expression {query} != ""
+		}
+		redir @canon_q /{re.canonq.1}/?{query} permanent
+		@canon {
+			path_regexp canon ^/((?:guides/)?[a-z0-9][a-z0-9-]*)(?:\.html)?$
+			not path /404.html /mobile.html
+		}
+		redir @canon /{re.canon.1}/ permanent
+
 		# serve directly: prerendered mobile dir, interactive mobile shell, assets, sidecar
 		@passthrough {
 			path /m/* /mobile.html /.well-known/*
@@ -66,6 +108,8 @@ blog.edgelab.space {
 	}
 
 	handle_errors {
-		respond "Not Found" 404
+		@404 expression {err.status_code} == 404
+		rewrite @404 /404.html
+		file_server
 	}
 }

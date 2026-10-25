@@ -38,6 +38,11 @@
     "docs": {
       "privacy": "https://drive.google.com/file/d/1hUEZbJBCdTQcpBqy_OAd8EupZwY9Xpx1/view",
       "offer": "https://drive.google.com/file/d/1i6XeY6SMcuA4uYYxBVpxEPN_EI_AeIH6/view"
+    },
+    "utm": {
+      "source": "guides",
+      "campaign": "space",
+      "contentPrefix": "blog-"
     }
   },
   "mcpIdentity": {
@@ -64,7 +69,8 @@
   "analytics": {
     "ga4": "G-J3H4311DJT",
     "metrika": "109832554",
-    "indexNowKey": "bb447dc53d0f0b6c96b9c32b8fa4cbb3"
+    "indexNowKey": "bb447dc53d0f0b6c96b9c32b8fa4cbb3",
+    "gscProperty": "sc-domain:edgelab.space"
   },
   "assets": {
     "og": "images/og-default.png",
@@ -77,5 +83,51 @@
     "ctaText": "Начать внедрение",
     "ctaHref": "/guides/kak-vnedrit-ai-agentov/",
     "heroImage": "/covers/_home-hero-dashi.webp"
+  },
+  "categories": [
+    {
+      "id": "claude",
+      "name": "Claude Code",
+      "pillar": "/claude-code/"
+    },
+    {
+      "id": "ai",
+      "name": "AI-агенты и модели"
+    },
+    {
+      "id": "mcp",
+      "name": "MCP-серверы"
+    },
+    {
+      "id": "memory",
+      "name": "База знаний"
+    },
+    {
+      "id": "design",
+      "name": "Дизайн"
+    },
+    {
+      "id": "video",
+      "name": "Автоматизация видео"
+    },
+    {
+      "id": "hermes",
+      "name": "Hermes",
+      "pillar": "/hermes/"
+    },
+    {
+      "id": "codex",
+      "name": "Codex",
+      "pillar": "/codex/"
+    }
+  ],
+  "content": {
+    "titleStopWords": [
+      "claude",
+      "code"
+    ],
+    "hubPages": [
+      "/guides/claude-code-skills/"
+    ]
   }
 }

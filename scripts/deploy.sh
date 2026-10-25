@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# deploy.sh — ship build/ to blog.edgelab.space (Timeweb) AND auto-ping IndexNow.
-# Before this, IndexNow was a manual afterthought (P1-4 audit gap). Now the deploy
-# pings Yandex+Bing itself, so freshness is never forgotten.
+# deploy.sh — ship build/ to the blog webroot, then tell the search engines:
+# IndexNow ping (Yandex + Bing) and a Google Search Console sitemap submit.
+# Order: dry-run deletion guard → backup → rsync --delete → chown → IndexNow → GSC.
 #
 # Usage:
 #   npm run build && scripts/deploy.sh                    # deploy + IndexNow all sitemap URLs
@@ -12,6 +12,10 @@
 #      ship ANOTHER brand's build to its own vhost dir on any host:
 #        BRAND_CONFIG=brands/acme.json npm run build
 #        BLOG_HOST=root@<host> BLOG_WEBROOT=/var/www/blog-acme scripts/deploy.sh
+#      ALLOW_DELETE=1 lets the deploy remove prod files that are not in build/
+#      (only when that deletion is planned — see the guard below).
+#      GSC_SA_KEY / analytics.gscKeyPath — service-account key for the GSC submit
+#      (scripts/gsc-submit-sitemap.mjs); without a key that step is skipped.
 set -euo pipefail
 
 HOST="${BLOG_HOST:-root@213.171.6.132}"
@@ -24,6 +28,24 @@ SSH=(ssh -o ConnectTimeout=15 "$HOST")
 if [ ! -d "$ROOT/build" ]; then
   echo "[deploy] no build/ — run 'npm run build' first" >&2
   exit 1
+fi
+
+# Deletion guard (docs/DEPLOY.md «сухой прогон»): rsync --delete removes from prod
+# everything that is not in build/. A build of a stale branch would silently wipe
+# newer guides. Dry-run first; any *deleting line aborts unless ALLOW_DELETE=1.
+echo "[deploy] dry-run: checking what --delete would remove on prod"
+# fail-closed: an ssh/rsync error aborts here (set -e) instead of reading as «no deletions»
+PLAN="$(rsync -azn --delete --checksum --out-format='%i %n' -e "ssh -o ConnectTimeout=15" \
+  "$ROOT/build/" "$HOST:$WEBROOT/")"
+DELETES="$(printf '%s\n' "$PLAN" | grep '^\*deleting' || true)"
+if [ -n "$DELETES" ]; then
+  echo "[deploy] rsync --delete would remove these prod files:" >&2
+  echo "$DELETES" >&2
+  if [ "${ALLOW_DELETE:-0}" != "1" ]; then
+    echo "[deploy] ABORT: unplanned deletions. Merge main into the build / rebuild, or rerun with ALLOW_DELETE=1 if intended." >&2
+    exit 1
+  fi
+  echo "[deploy] ALLOW_DELETE=1 — proceeding with the deletions above"
 fi
 
 TS="$(date +%Y%m%d-%H%M%S)"
@@ -44,4 +66,10 @@ rsync -az --delete -e "ssh -o ConnectTimeout=15" "$ROOT/build/" "$HOST:$WEBROOT/
 echo "[deploy] IndexNow ping (Yandex + Bing)"
 node "$ROOT/scripts/indexnow-submit.mjs" "$@"
 
-echo "[deploy] done. Now ping Kaelthas to recrawl via Yandex.Webmaster."
+# Google has no IndexNow: the sitemap (honest lastmod) submitted to Search Console
+# is its recrawl signal. Non-fatal: the site is already live; a missing key or a
+# permission error prints the exact manual step instead of failing the deploy.
+echo "[deploy] Google Search Console: submit sitemap"
+node "$ROOT/scripts/gsc-submit-sitemap.mjs" || echo "[deploy] WARN: GSC sitemap submit did not complete (see the [gsc] lines above)"
+
+echo "[deploy] done. Yandex.Webmaster recrawl of changed URLs is a separate step (docs/DEPLOY.md)."
