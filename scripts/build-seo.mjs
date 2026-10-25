@@ -17,7 +17,7 @@
 
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { promises as fs, existsSync, readFileSync } from "node:fs";
+import { promises as fs, existsSync, readFileSync, realpathSync } from "node:fs";
 import crypto from "node:crypto";
 import brand from "./brand.mjs";
 import { categoryPages } from "./categories.mjs";
@@ -232,6 +232,15 @@ function faqFromBody(mdxBody) {
   return out;
 }
 
+// frontmatter `author:` (required for new guides by content-lint) wins; the brand
+// author is the fallback. The brand author URL belongs to the brand author only —
+// another author has no known page, so the URL is omitted rather than misattributed.
+// The visible byline (site/gf-app.jsx Byline) names the same person.
+function articleAuthor(guide) {
+  const name = guide.author || AUTHOR_NAME;
+  return name === AUTHOR_NAME ? { "@type": "Person", name, url: AUTHOR_URL } : { "@type": "Person", name };
+}
+
 function techArticleGraph(guide, mdxBody) {
   const url = guideUrl(guide.slug);
   const graph = [
@@ -248,9 +257,7 @@ function techArticleGraph(guide, mdxBody) {
       dateModified: guide.updatedAt || undefined,
       inLanguage: LANG,
       keywords: (guide.tags || []).join(", ") || undefined,
-      // frontmatter `author:` (required for new guides by content-lint) wins; the
-      // brand author is the fallback. The URL stays the brand author page.
-      author: { "@type": "Person", name: guide.author || AUTHOR_NAME, url: AUTHOR_URL },
+      author: articleAuthor(guide),
       publisher: { "@id": `${BASE}/#organization` },
       mainEntityOfPage: { "@type": "WebPage", "@id": url },
       url,
@@ -1122,7 +1129,12 @@ async function main() {
   console.log(`  sample twin ${guides[0].slug}.md: ${sampleTwin.length} bytes, sha256 ${sha256(sampleTwin).slice(0, 12)}…`);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Run only as a script (prerender spawns it); an import (tests) gets the helpers.
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
+
+export { techArticleGraph };

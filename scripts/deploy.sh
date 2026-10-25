@@ -52,30 +52,51 @@ TS="$(date +%Y%m%d-%H%M%S)"
 # Backup is the rollback net before rsync --delete. Skip ONLY if the webroot
 # doesn't exist yet (first deploy); otherwise a failed backup is FATAL — we don't
 # --delete without a snapshot (Codex M345).
-if "${SSH[@]}" "test -d \"$WEBROOT\""; then
-  echo "[deploy] backup prod webroot → /root/$WEBROOT_NAME.bak.$TS.tgz"
-  "${SSH[@]}" "tar czf \"/root/$WEBROOT_NAME.bak.$TS.tgz\" -C \"$WEBROOT_DIR\" \"$WEBROOT_NAME\""
-else
-  echo "[deploy] webroot $WEBROOT absent — first deploy, no backup"
-fi
+# fail-closed: «absent» must be a positive answer from the remote shell. A bare
+# `test -d` exit status can't tell a missing dir (1) from an ssh error (255).
+WEBROOT_RC=0
+WEBROOT_STATE="$("${SSH[@]}" "if [ -d \"$WEBROOT\" ]; then echo present; elif [ -e \"$WEBROOT\" ]; then echo not-a-dir; else echo absent; fi")" || WEBROOT_RC=$?
+case "$WEBROOT_RC:$WEBROOT_STATE" in
+  0:present)
+    echo "[deploy] backup prod webroot → /root/$WEBROOT_NAME.bak.$TS.tgz"
+    "${SSH[@]}" "tar czf \"/root/$WEBROOT_NAME.bak.$TS.tgz\" -C \"$WEBROOT_DIR\" \"$WEBROOT_NAME\""
+    ;;
+  0:absent)
+    echo "[deploy] webroot $WEBROOT absent — first deploy, no backup"
+    ;;
+  *)
+    echo "[deploy] ABORT: cannot check webroot $WEBROOT on $HOST (ssh exit $WEBROOT_RC, answer «$WEBROOT_STATE») — no deploy without a backup" >&2
+    exit 1
+    ;;
+esac
 
 echo "[deploy] rsync build/ → $HOST:$WEBROOT"
 rsync -az --delete -e "ssh -o ConnectTimeout=15" "$ROOT/build/" "$HOST:$WEBROOT/"
 "${SSH[@]}" "chown -R www-data:www-data \"$WEBROOT\""
 
+# The site is live from here on: the search pings are independent and non-fatal.
+# Each one's result is captured and reported, so an IndexNow error neither skips
+# the GSC submit nor fails a finished deploy — but it is never silent.
 echo "[deploy] IndexNow ping (Yandex + Bing)"
-node "$ROOT/scripts/indexnow-submit.mjs" "$@"
+INDEXNOW_RC=0
+node "$ROOT/scripts/indexnow-submit.mjs" "$@" || INDEXNOW_RC=$?
 
 # Google has no IndexNow: the sitemap (honest lastmod) submitted to Search Console
-# is its recrawl signal. Non-fatal: the site is already live; a missing key or a
-# permission error prints the exact manual step instead of failing the deploy.
+# is its recrawl signal. A missing key or a permission error prints the exact
+# manual step instead of failing the deploy.
 echo "[deploy] Google Search Console: submit sitemap"
 GSC_RC=0
 node "$ROOT/scripts/gsc-submit-sitemap.mjs" || GSC_RC=$?
+
+if [ "$INDEXNOW_RC" -eq 0 ]; then
+  echo "[deploy] IndexNow: OK"
+else
+  echo "[deploy] WARN: IndexNow ping did not complete (exit $INDEXNOW_RC, see the lines above) — rerun scripts/indexnow-submit.mjs" >&2
+fi
 case "$GSC_RC" in
-  0) ;;
+  0) echo "[deploy] GSC: OK" ;;
   2) echo "[deploy] GSC submit skipped (no analytics.gscProperty / service-account key configured)" ;;
-  *) echo "[deploy] WARN: GSC sitemap submit did not complete (exit $GSC_RC, see the [gsc] lines above)" ;;
+  *) echo "[deploy] WARN: GSC sitemap submit did not complete (exit $GSC_RC, see the [gsc] lines above)" >&2 ;;
 esac
 
 echo "[deploy] done. Yandex.Webmaster recrawl of changed URLs is a separate step (docs/DEPLOY.md)."

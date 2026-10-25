@@ -12,6 +12,7 @@
 //   4. every guide page bakes its OWN slug into the funnel UTM
 //      (utm_content=<funnel.utm.contentPrefix><slug>), never another guide's.
 //   5. JSON-LD BreadcrumbList has no repeated URL (wrong-category crumbs).
+//   6. the visible byline names the same author as the JSON-LD Article author.
 
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -20,12 +21,19 @@ import vm from "node:vm";
 import brand from "./brand.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const BUILD = join(ROOT, "build");
+const BUILD = process.env.VERIFY_BUILD_DIR || join(ROOT, "build");
 const BASE = String(brand.domain.site).replace(/\/+$/, "");
 const UTM = (brand.funnel && brand.funnel.utm) || {};
 const UTM_PREFIX = UTM.contentPrefix != null ? String(UTM.contentPrefix) : "blog-";
 const fails = [];
 const F = (m) => fails.push(m);
+const unescapeHtml = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+  .replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+// utm_content of every link, read from the parsed URL query: brand prefixes may
+// carry uppercase, _ and . (brand.mjs), so no hand-rolled value charset here.
+const utmContents = (html) => [...html.matchAll(/\bhref="([^"]*utm_content=[^"]*)"/g)].flatMap((m) => {
+  try { return new URL(unescapeHtml(m[1]), `${BASE}/`).searchParams.getAll("utm_content"); } catch { return []; }
+});
 
 const ctx = { window: {} };
 vm.createContext(ctx);
@@ -81,7 +89,7 @@ for (const g of guides) {
         if (missing.length) F(`${rel}: index misses ${missing.length} guide(s): ${missing.slice(0, 5).join(", ")}`);
       }
     }
-    const utms = [...html.matchAll(/utm_content=([a-z0-9-]+)/g)].map((x) => x[1]);
+    const utms = utmContents(html);
     // funnel.mode "none" renders no funnel links at all — nothing to attribute then.
     const funnelOn = ((brand.funnel && brand.funnel.mode) || "community") !== "none";
     if (funnelOn && !utms.length) F(`${rel}: no funnel UTM link`);
@@ -90,10 +98,15 @@ for (const g of guides) {
     const own = `${UTM_PREFIX}${g.slug}`;
     const foreign = [...new Set(utms.filter((u) => u !== own && u !== g.slug))];
     if (foreign.length) F(`${rel}: foreign utm_content ${foreign.join(", ")} (expected ${own})`);
+    // byline text = «<author> · <read time>» (site/gf-app.jsx Byline)
+    const bm = html.match(/class="gp-byline-au">([^<]*)</);
+    const byline = bm ? unescapeHtml(bm[1]).split(" · ")[0].trim() : null;
     for (const m of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) {
       let data;
       try { data = JSON.parse(m[1]); } catch { F(`${rel}: invalid JSON-LD`); continue; }
       for (const node of data["@graph"] || [data]) {
+        if (byline !== null && [].concat(node["@type"]).includes("Article") && node.author && node.author.name !== byline)
+          F(`${rel}: byline «${byline}» ≠ JSON-LD author «${node.author.name}»`);
         if (node["@type"] !== "BreadcrumbList") continue;
         const urls = (node.itemListElement || []).map((it) => it.item);
         if (new Set(urls).size !== urls.length) F(`${rel}: BreadcrumbList repeats a URL (${urls.join(" › ")})`);

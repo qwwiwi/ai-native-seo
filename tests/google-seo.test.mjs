@@ -422,3 +422,117 @@ test("content-lint: a guide titled like a category page FAILs", async () => {
   assert.equal(code, 1, out);
   assert.match(out, /hermes-intro: H1\/title «Hermes» совпадает с H1 страницы категории \/hermes\//);
 });
+
+// ---- 9. deploy.sh: backup check fails closed, search pings are independent ---------
+// Fake-ssh project: build/ is one file newer than the webroot (no deletions),
+// tar/chown are no-ops; `sshDown` = every non-rsync ssh call exits 255 (= ssh
+// connection error: the link drops after the dry-run).
+function deployFixture({ sshDown = false, indexNowRc = 0 } = {}) {
+  const t = tmp("deploy2");
+  mkdirSync(join(t, "proj", "scripts"), { recursive: true });
+  cpSync(join(ROOT, "scripts", "deploy.sh"), join(t, "proj", "scripts", "deploy.sh"));
+  writeFileSync(join(t, "proj", "scripts", "indexnow-submit.mjs"), `console.log("indexnow-ran"); process.exit(${indexNowRc});\n`);
+  writeFileSync(join(t, "proj", "scripts", "gsc-submit-sitemap.mjs"), 'console.log("gsc-ran");\n');
+  mkdirSync(join(t, "proj", "build"));
+  writeFileSync(join(t, "proj", "build", "index.html"), "new build");
+  mkdirSync(join(t, "web"));
+  writeFileSync(join(t, "web", "index.html"), "old");
+  mkdirSync(join(t, "bin"));
+  writeFileSync(join(t, "bin", "ssh"), [
+    "#!/bin/sh",
+    'while [ $# -gt 0 ]; do case "$1" in -o) shift 2;; -*) shift;; *) break;; esac; done',
+    "shift",
+    ...(sshDown ? ['case "$*" in rsync\\ *) ;; *) echo "fake-ssh: connection refused" >&2; exit 255;; esac'] : []),
+    'case "$*" in *tar\\ czf*) echo "fake-ssh: backup ok"; exit 0;; *chown*) exit 0;; esac',
+    'exec sh -c "$*"',
+    "",
+  ].join("\n"));
+  chmodSync(join(t, "bin", "ssh"), 0o755);
+  const env = { PATH: `${join(t, "bin")}:${process.env.PATH}`, BLOG_HOST: "fakehost", BLOG_WEBROOT: join(t, "web") };
+  return { t, deploy: () => run("bash", [join(t, "proj", "scripts", "deploy.sh")], { env }) };
+}
+
+test("deploy.sh: an ssh error on the webroot check aborts instead of skipping the backup", { skip: !has("rsync") }, async () => {
+  const { t, deploy } = deployFixture({ sshDown: true });
+  const r = await deploy();
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /ABORT/);
+  assert.ok(!r.out.includes("first deploy"), "an ssh error must not read as «webroot absent»");
+  assert.equal(readFileSync(join(t, "web", "index.html"), "utf8"), "old", "no rsync without a backup");
+});
+
+test("deploy.sh: a genuinely absent webroot is still a first deploy (no backup)", { skip: !has("rsync") }, async () => {
+  const { t, deploy } = deployFixture();
+  const web = join(t, "web");
+  execFileSync("rm", ["-r", web]);
+  const r = await deploy();
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /first deploy, no backup/);
+  assert.equal(readFileSync(join(web, "index.html"), "utf8"), "new build");
+});
+
+test("deploy.sh: an IndexNow failure still runs the GSC submit and is reported", { skip: !has("rsync") }, async () => {
+  const { t, deploy } = deployFixture({ indexNowRc: 1 });
+  const r = await deploy();
+  assert.equal(r.code, 0, `a ping failure must not fail a finished deploy:\n${r.out}`);
+  assert.match(r.out, /fake-ssh: backup ok/);
+  assert.match(r.out, /indexnow-ran/);
+  assert.match(r.out, /gsc-ran/, "GSC submit must run after an IndexNow failure");
+  assert.match(r.out, /WARN: IndexNow .*exit 1/);
+  assert.equal(readFileSync(join(t, "web", "index.html"), "utf8"), "new build");
+});
+
+// ---- 10. verify-google-seo: UTM prefixes + byline/JSON-LD author agree -------------
+// Fixture build: one live guide, desktop + mobile page, community funnel.
+function seoFixture({ prefix, byline = "Jane Roe", ldAuthor = "Jane Roe" }) {
+  const b = tmp("seobuild");
+  const base = JSON.parse(readFileSync(join(ROOT, "brand.config.example.json"), "utf8"));
+  const cfg = join(b, "brand.json");
+  writeFileSync(cfg, JSON.stringify({ ...base, funnel: { ...base.funnel, mode: "community", utm: { ...base.funnel.utm, contentPrefix: prefix } } }));
+  const site = "https://blog.acme.example";
+  const ld = JSON.stringify({ "@graph": [{ "@type": ["Article", "TechArticle"], author: { "@type": "Person", name: ldAuthor } }] });
+  const page = `<nav class="gp-guide-index"></nav><span class="gp-byline-au">${byline} · 10 мин чтения</span>` +
+    `<a href="https://acme.example/?utm_source=blog&amp;utm_medium=cta&amp;utm_content=${encodeURIComponent(prefix)}g1">x</a>` +
+    `<script type="application/ld+json">${ld}</script>`;
+  const files = {
+    "brand.json": readFileSync(cfg, "utf8"),
+    "guides-data.js": 'window.__GF_GUIDES = [{"slug":"g1","cat":"x","updatedAt":"2026-10-20T00:00:00Z"}];\n',
+    "sitemap.xml": `<urlset><url><loc>${site}/guides/g1/</loc><lastmod>2026-10-20</lastmod></url>` +
+      `<url><loc>${site}/</loc><lastmod>2026-10-20</lastmod></url><url><loc>${site}/library/</loc><lastmod>2026-10-20</lastmod></url></urlset>`,
+    "guides/g1.html": page, "m/guides/g1.html": page,
+  };
+  for (const [p, body] of Object.entries(files)) { mkdirSync(dirname(join(b, p)), { recursive: true }); writeFileSync(join(b, p), body); }
+  return run(process.execPath, ["scripts/verify-google-seo.mjs"], { env: { VERIFY_BUILD_DIR: b, BRAND_CONFIG: cfg } });
+}
+
+test("verify-google-seo: a valid brand UTM prefix with uppercase, _ and . is its own slug", async () => {
+  for (const prefix of ["blog-", "Acme_test.", "acme_test-"]) {
+    const { code, out } = await seoFixture({ prefix });
+    assert.equal(code, 0, `prefix ${prefix}:\n${out}`);
+  }
+});
+
+test("verify-google-seo: a byline that names another author than the JSON-LD FAILs", async () => {
+  const { code, out } = await seoFixture({ prefix: "blog-", byline: "Brand Author", ldAuthor: "Jane Roe" });
+  assert.equal(code, 1, out);
+  assert.match(out, /byline «Brand Author» ≠ JSON-LD author «Jane Roe»/);
+});
+
+// ---- 11. build-seo: the article author's URL is never the brand author's -----------
+test("build-seo: a custom frontmatter author gets no brand-author URL; the brand author keeps it", async () => {
+  const brand = JSON.parse(readFileSync(join(ROOT, "brand.config.json"), "utf8"));
+  const { techArticleGraph } = await import("../scripts/build-seo.mjs");
+  const author = (g) => techArticleGraph({ slug: "g1", title: "T", desc: "D", ...g }, "body")["@graph"].find((n) => n["@id"]?.endsWith("#article")).author;
+  assert.deepEqual(author({ author: "Someone Else" }), { "@type": "Person", name: "Someone Else" });
+  assert.deepEqual(author({}), { "@type": "Person", name: brand.author.name, url: brand.author.url });
+  assert.deepEqual(author({ author: brand.author.name }), { "@type": "Person", name: brand.author.name, url: brand.author.url });
+});
+
+test("gf-app: the visible byline names the article author (brand author fallback)", () => {
+  const src = readFileSync(join(ROOT, "site", "gf-app.jsx"), "utf8");
+  const calls = [...src.matchAll(/<Byline\b[^>]*\/>/g)].map((m) => m[0]);
+  assert.ok(calls.length >= 2, "desktop + mobile bylines");
+  for (const c of calls) assert.match(c, /author=\{a\.author\}/, c);
+  assert.match(src, /function guideToArticle\(g\)[\s\S]*?\n {4}author: g\.author/, "guideToArticle must carry the author");
+  assert.match(src, /function Byline\(\{ author, meta \}\)[\s\S]*?\{author \|\| AUTHOR_NAME\}/);
+});

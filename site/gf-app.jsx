@@ -173,13 +173,15 @@ function Logo() {
 }
 // Author byline under the title (guides + articles), Substack-style author header.
 // `meta` = optional read-time/date shown after the author («Даши Ешиев · 15 мин чтения»).
-function Byline({ meta }) {
+// `author` = the article's frontmatter author (same name as its JSON-LD author,
+// scripts/build-seo.mjs); the brand author is the fallback.
+function Byline({ author, meta }) {
   return (
     <a className="gp-byline" href={TG} target="_blank" rel="noopener" aria-label="Канал «Записки AI-энтузиаста»">
       <img className="gp-byline-av" src="/images/author-avatar.png" alt="" width="40" height="40" loading="lazy" />
       <span className="gp-byline-txt">
         <span className="gp-byline-ch">{TG_NAME}</span>
-        <span className="gp-byline-au">{AUTHOR_NAME}{meta ? " · " + meta : ""}</span>
+        <span className="gp-byline-au">{author || AUTHOR_NAME}{meta ? " · " + meta : ""}</span>
       </span>
     </a>
   );
@@ -550,6 +552,8 @@ function guideToArticle(g) {
     tested: g.tested,
     meta: g.meta,
     level: g.level,
+    // frontmatter author → the visible Byline (brand author when empty)
+    author: g.author || "",
     side: {
       group: `${g.catName} · ${sibs.length}`,
       items: sibs.map((s) => ({ t: s.title, slug: s.slug })),
@@ -846,7 +850,7 @@ function Content({ article, cta, rich }) {
         <h1 className="gp-h1">{a.title}</h1>
         <CopyPageButton slug={a.slug} />
       </div>
-      <Byline meta={a.min ? a.min + " мин чтения" : ""} />
+      <Byline author={a.author} meta={a.min ? a.min + " мин чтения" : ""} />
       <p className="gp-desc">{a.desc}</p>
       {!isArticle && rich && a.tldr && <Tldr text={a.tldr} />}
       {isReal ? (
@@ -1085,7 +1089,7 @@ function MobileArticle({ article, initialTheme }) {
           <div className="m-bc">{a.type === "article" ? "Статьи" : "Гайды / " + a.crumbMid}</div>
           <h1 className="m-h1">{a.title}</h1>
           <div className="m-copyrow"><CopyPageButton slug={a.slug} /></div>
-          <Byline meta={a.min ? a.min + " мин чтения" : ""} />
+          <Byline author={a.author} meta={a.min ? a.min + " мин чтения" : ""} />
           <p className="m-desc">{a.desc}</p>
           {a.type !== "article" && a.tldr && <Tldr text={a.tldr} />}
           {a.bodyHtml ? (
