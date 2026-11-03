@@ -1,4 +1,3 @@
-import { verifyContext, guideDataPath } from "./verify-context.mjs";
 // verify-google-seo.mjs — post-build check of the Google-facing invariants in build/.
 // Run after `npm run build` (also part of `npm run verify` / scripts/check.sh).
 // Exit 1 on any failure.
@@ -22,8 +21,7 @@ import vm from "node:vm";
 import brand from "./brand.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const VERIFY = verifyContext();
-const BUILD = VERIFY.dir;
+const BUILD = process.env.VERIFY_BUILD_DIR || join(ROOT, "build");
 const BASE = String(brand.domain.site).replace(/\/+$/, "");
 const UTM = (brand.funnel && brand.funnel.utm) || {};
 const UTM_PREFIX = UTM.contentPrefix != null ? String(UTM.contentPrefix) : "blog-";
@@ -39,7 +37,7 @@ const utmContents = (html) => [...html.matchAll(/\bhref="([^"]*utm_content=[^"]*
 
 const ctx = { window: {} };
 vm.createContext(ctx);
-vm.runInContext(readFileSync(guideDataPath(VERIFY), "utf8"), ctx);
+vm.runInContext(readFileSync(join(BUILD, "guides-data.js"), "utf8"), ctx);
 const guides = ctx.window.__GF_GUIDES || [];
 const cats = ctx.window.__GF_CATS || [];
 if (!guides.length) F("guides-data.js: no guides");

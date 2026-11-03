@@ -1,4 +1,3 @@
-import { verifyContext, guideDataPath } from "./verify-context.mjs";
 // verify-category-pages.mjs — post-build gate for the category listing pages and for
 // every internal page link. Run by scripts/prerender.mjs right after build-seo (a
 // failure fails the build) and by `npm run verify`. Exit 1 on any failure.
@@ -24,14 +23,13 @@ import vm from "node:vm";
 import { categoryPages } from "./categories.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const VERIFY = verifyContext();
-const BUILD = VERIFY.dir;
+const BUILD = process.env.VERIFY_BUILD_DIR || join(ROOT, "build");
 const fails = [];
 const F = (m) => fails.push(m);
 
 const ctx = { window: {} };
 vm.createContext(ctx);
-vm.runInContext(readFileSync(guideDataPath(VERIFY), "utf8"), ctx);
+vm.runInContext(readFileSync(join(BUILD, "guides-data.js"), "utf8"), ctx);
 const guides = ctx.window.__GF_GUIDES || [];
 // The pages that MUST exist, from the taxonomy + content (not from the build output,
 // so a build that silently dropped or mis-rendered a page cannot vouch for itself).

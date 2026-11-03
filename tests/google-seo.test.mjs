@@ -536,23 +536,3 @@ test("gf-app: the visible byline names the article author (brand author fallback
   assert.match(src, /function guideToArticle\(g\)[\s\S]*?\n {4}author: g\.author/, "guideToArticle must carry the author");
   assert.match(src, /function Byline\(\{ author, meta \}\)[\s\S]*?\{author \|\| AUTHOR_NAME\}/);
 });
-
-test("Loore robots separate search and training bots", async () => {
-  const { buildSeoContent } = await import("../scripts/seo-content.mjs");
-  const context = { brand: { domain: { site: "https://blog.loore.ai" } }, paths: { isDefault: false, brandDir: join(ROOT, "brands/loore") } };
-  const seo = await buildSeoContent(context);
-  const robots = seo.robotsTxt();
-  assert.match(robots, /User-agent: OAI-SearchBot\nAllow: \//);
-  assert.match(robots, /User-agent: GPTBot\nAllow: \//);
-});
-
-
-test("Loore robots can block training without blocking search", async () => {
-  const { buildSeoContent } = await import("../scripts/seo-content.mjs");
-  const dir = tmp("seo-policy");
-  writeFileSync(join(dir, "seo.json"), JSON.stringify({ allowTrainingBots: false }));
-  const seo = await buildSeoContent({ brand: { domain: { site: "https://blog.loore.ai" } }, paths: { isDefault: false, brandDir: dir } });
-  assert.match(seo.robotsTxt(), /User-agent: GPTBot\nDisallow: \//);
-  assert.match(seo.robotsTxt(), /User-agent: Claude-SearchBot\nAllow: \//);
-  assert.match(seo.robotsTxt(), /ai-train=no/);
-});

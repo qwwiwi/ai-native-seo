@@ -1,18 +1,16 @@
 #!/usr/bin/env node
-import { verifyContext, guideDataPath } from "./verify-context.mjs";
 // Verify the «Похожие материалы» (related) data + rendered block. Run after build.
 import { readFile, readdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const VERIFY = verifyContext();
-const BUILD = VERIFY.dir;
+const BUILD = join(ROOT, "build");
 let fails = 0;
 const fail = (m) => { fails++; console.error("  ✗ " + m); };
 
 // 1) data: each non-stub guide has 3-4 valid related slugs, no self/dupe.
-const dataJs = await readFile(guideDataPath(VERIFY), "utf8");
+const dataJs = await readFile(join(ROOT, "site", "guides-data.js"), "utf8");
 const win = {};
 // eslint-disable-next-line no-new-func
 new Function("window", dataJs)(win);

@@ -1,7 +1,6 @@
-/* read-through tracker — guide/article pages only.
+/* read-through tracker — blog.edgelab.space guide/article pages only.
    Fires scroll-depth milestones (25/50/75/100%) ONCE per page load into:
-     • Yandex.Metrika (the brand's counter, window.__BRAND.analytics.metrika; none
-       → no call): reachGoal scroll_N + notBounce at 75% («дочитал»
+     • Yandex.Metrika (109832554): reachGoal scroll_N + notBounce at 75% («дочитал»
        → fixes the single-page «время на странице = 0» / bounce problem)
      • GA4: scroll_depth event with percent_scrolled + content_group
    content_group (article|guide) comes from <body data-content-group>.
@@ -12,8 +11,7 @@
   if (window.__gfScrollBound) return; // survive a React re-mount on the same doc
   window.__gfScrollBound = true;
 
-  var an = (window.__BRAND && window.__BRAND.analytics) || {};
-  var YM = an.metrika ? Number(an.metrika) : null;
+  var YM = 109832554;
   var marks = [25, 50, 75, 100];
   var fired = {};
   var cg =
@@ -43,7 +41,7 @@
       if (p >= m && !fired[m]) {
         fired[m] = true;
         try {
-          if (YM && typeof window.ym === "function") {
+          if (typeof window.ym === "function") {
             window.ym(YM, "reachGoal", "scroll_" + m);
             if (m === 75) window.ym(YM, "notBounce");
           }

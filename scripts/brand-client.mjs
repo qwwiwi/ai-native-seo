@@ -13,14 +13,12 @@
 //   2. <style id="brand-tokens">:root{…}</style> — palette + font CSS vars that
 //      override gf-styles.css :root globally (see the de-duped :root there).
 //
-// The default brand (root brand.config.json): every value below equals the
-// current gf-styles.css / gf-app.jsx literal, so the default build is unchanged.
+// EdgeLab Space is the default brand: every value below equals the current
+// gf-styles.css / gf-app.jsx literal, so the default build is unchanged.
 // Zero dependencies — plain string building.
 
-import { resolveBrandPaths, loadBrandUi } from "./brand-paths.mjs";
-
 // Fallback tails appended to each configured font FAMILY so the CSS var equals
-// the gf-styles.css :root default for the default brand config. Keep these in sync with
+// the gf-styles.css :root default for the EdgeLab config. Keep these in sync with
 // the :root block in site/gf-styles.css (same stacks, verbatim).
 const FONT_TAILS = {
   display: ",sans-serif",
@@ -31,13 +29,7 @@ const FONT_TAILS = {
 
 // The subset of brand.config.json exposed to the client. Analytics ids / MCP card
 // stay server-only (already baked into <head> by build-seo) — no need on window.
-//
-// `analytics` carries only the PUBLIC counter ids the client reports to (Metrika
-// reachGoal, scroll-depth) — null means no counter. `ui` is the brand UI copy
-// (brand-paths loadBrandUi: the default brand's from brand-compat.mjs, another
-// brand's own ui.json, else null) — the shared client source holds no brand copy.
 export function brandClientPayload(brand) {
-  const a = brand.analytics || {};
   return {
     brandName: brand.brandName,
     domain: brand.domain,
@@ -47,21 +39,7 @@ export function brandClientPayload(brand) {
     fonts: brand.fonts,
     funnel: brand.funnel,
     home: brand.home,
-    analytics: { metrika: a.metrika || null, ga4: a.ga4 || null },
-    ui: brandUi(),
   };
-}
-
-// UI data of the SELECTED brand (env BRAND_CONFIG). A legacy profile without an id
-// cannot be built (brand-paths) and gets no UI copy.
-let uiCache;
-function brandUi() {
-  if (uiCache === undefined) {
-    let paths = null;
-    try { paths = resolveBrandPaths(); } catch { /* legacy profile */ }
-    uiCache = paths ? loadBrandUi(paths) : null;
-  }
-  return uiCache;
 }
 
 // The plain JS statement (no <script> wrapper) — used by prerender's
@@ -104,7 +82,7 @@ export function brandTokensStyle(brand) {
   return `<style id="brand-tokens">:root{${decls.join(";")}}</style>`;
 }
 
-// The Google-Fonts stylesheet href for this brand ("" = keep the shell page's link).
+// The Google-Fonts stylesheet href for this brand (fallback: EdgeLab default).
 export function brandFontsHref(brand) {
   return (brand.fonts && brand.fonts.googleHref) || "";
 }
