@@ -17,3 +17,9 @@ Addendum, warchief voice message 72709, 2026-11-03 19:06 UTC (verbatim):
 > СДАИ там, чтобы эти все кнопки там везде был переход, призыв на сайт лури.и там блог, мы с Кельтасом там сделали уже промокод блог, чтобы было понятно, что люди с блога пришли. В общем, сделай это, у Кельтаса спроси, он тебе передаст.
 
 - Every button/CTA leads to loore.ai and carries the «блог» promo code Kaelthas already created, so blog traffic is attributable.
+
+Addendum, warchief voice message 72715, 2026-11-03 19:08 UTC (verbatim):
+
+> Единственная проблема в том, что нам в Telegram-чипе один из наших участников писал, что у нас блок Agile Space долго загружается. А когда долго загружаются, поисковики это не особо любят. Нужно подумать, чтобы загрузка была. Тоже ресерч по загрузке компонентов сайта нужно тоже понять.
+
+- The EdgeLab Space blog is reported slow; research load performance before building the Loore blog on the same engine, and fix the engine if needed.

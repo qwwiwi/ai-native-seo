@@ -14,3 +14,4 @@
 | R10 | Content pipeline reused from the EdgeLab blog (Kaelthas answer recorded in brief/) | live |
 | R11 | Analytics on (Yandex Metrika / GA4 or the Loore default) | live |
 | R12 | Phone 390px and desktop screenshots of the live blog shown to the owner | live |
+| R13 | Page speed: research why blog.edgelab.space loads slowly; Loore blog passes Core Web Vitals on mobile (LCP < 2.5 s, CLS < 0.1, INP < 200 ms) measured on the live URL | live |
