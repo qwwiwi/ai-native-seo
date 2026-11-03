@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { verifyContext, guideDataPath } from "./verify-context.mjs";
 // Verify the read-through analytics instrumentation in build/.
 // Run AFTER `npm run build`. Exits non-zero on any failure.
 //
@@ -15,7 +16,8 @@ import { readFile, readdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const BUILD = join(dirname(fileURLToPath(import.meta.url)), "..", "build");
+const VERIFY = verifyContext();
+const BUILD = VERIFY.dir;
 let failures = 0;
 const fail = (label, msg) => {
   failures++;

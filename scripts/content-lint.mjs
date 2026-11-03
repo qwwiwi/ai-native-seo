@@ -44,12 +44,13 @@
 // CONTENT_GUIDES_DIR=<dir> lints another MDX directory (tests use it on a copy).
 
 import { promises as fs, existsSync, readFileSync } from "node:fs";
-import { dirname, join, basename, resolve } from "node:path";
+import { dirname, join, basename, resolve, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { isMaterialChange, readableWords, changedWords } from "./content-dates.mjs";
 import { CAT_NAMES, CAT_PILLAR, DEFAULT_CAT } from "./categories.mjs";
 import brand from "./brand.mjs";
+import { resolveBrandPaths } from "./brand-paths.mjs";
 
 // Google-rule gate start: guides published on/after this date must pass every rule.
 const GOOGLE_RULES_SINCE = "2026-10-18";
@@ -64,8 +65,9 @@ const RU_MONTHS = "(январ|феврал|март|апрел|ма[йя]|ию�
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const SRC = process.env.CONTENT_GUIDES_DIR ? resolve(process.env.CONTENT_GUIDES_DIR) : join(ROOT, "content-guides");
-const COVERS = join(ROOT, "site", "covers");
+const PATHS = resolveBrandPaths();
+const SRC = process.env.CONTENT_GUIDES_DIR ? resolve(process.env.CONTENT_GUIDES_DIR) : PATHS.contentDir;
+const COVERS = join(PATHS.assetsDir, "covers");
 
 // A spoke should link to ITS category's pillar page (recirculation + topical
 // authority) — a Hermes guide linking to /codex/ must NOT satisfy the check.
@@ -77,6 +79,10 @@ const COVERS = join(ROOT, "site", "covers");
 const ANY_PILLAR = [...new Set([...Object.values(CAT_PILLAR), ...((brand.content && brand.content.hubPages) || [])])];
 function loadSlugCat() {
   const cat = {};
+  if (!PATHS.isDefault) {
+    const map = PATHS.fixtureSlugCategoriesPath && existsSync(PATHS.fixtureSlugCategoriesPath) ? PATHS.fixtureSlugCategoriesPath : PATHS.slugCategoriesPath;
+    return JSON.parse(readFileSync(map, "utf8"));
+  }
   try {
     const src = readFileSync(join(__dirname, "build-guides-data.mjs"), "utf8");
     const block = src.match(/const SLUG_CAT = (\{[\s\S]*?\});/);
@@ -275,7 +281,7 @@ async function main() {
     if (!isStub && !pillarOk) {
       W(`нет ссылки на pillar-страницу категории (${expectedPillar || "любой pillar"})`);
     }
-    const head = bodyOfGitHead(`content-guides/${file}`);
+    const head = bodyOfGitHead(relative(ROOT, join(PATHS.isDefault && process.env.CONTENT_GUIDES_DIR ? PATHS.contentDir : SRC, file)).split("\\").join("/"));
     if (head && head.fm.updated_at === fm.updated_at) {
       // A MATERIAL body change (or a new title/description) should carry an
       // updated_at bump so the frontmatter stays in sync with the honest date.
@@ -294,7 +300,7 @@ async function main() {
     // date-only bump is caught too. A small but real text fix (a price, a version)
     // changes ≥1 word and passes; ONLY a bump with zero text change fails.
     const base = head && head.body.trim() === body.trim() && head.fm.updated_at === fm.updated_at
-      ? bodyOfPrevVersion(`content-guides/${file}`)
+      ? bodyOfPrevVersion(relative(ROOT, join(PATHS.isDefault && process.env.CONTENT_GUIDES_DIR ? PATHS.contentDir : SRC, file)).split("\\").join("/"))
       : head;
     if (base && base.fm.updated_at && fm.updated_at !== base.fm.updated_at && changedWords(base.body, body) === 0) {
       F(`updated_at сдвинут (${base.fm.updated_at} → ${fm.updated_at}) без единой правки текста — ` +
