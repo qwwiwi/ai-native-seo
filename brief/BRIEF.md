@@ -11,3 +11,9 @@ Interpretation (Thrall, to be confirmed by the owner via the checklist):
 - Images generated with gpt-image-2 (Codex image skill).
 - Reuse the ready engine: qwwiwi/ai-native-seo (white-label, powers blog.edgelab.space); ask Kaelthas how the EdgeLab blog content pipeline works.
 - Visual style: Loore brand.
+
+Addendum, warchief voice message 72709, 2026-11-03 19:06 UTC (verbatim):
+
+> СДАИ там, чтобы эти все кнопки там везде был переход, призыв на сайт лури.и там блог, мы с Кельтасом там сделали уже промокод блог, чтобы было понятно, что люди с блога пришли. В общем, сделай это, у Кельтаса спроси, он тебе передаст.
+
+- Every button/CTA leads to loore.ai and carries the «блог» promo code Kaelthas already created, so blog traffic is attributable.

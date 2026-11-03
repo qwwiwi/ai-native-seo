@@ -9,7 +9,7 @@
 | R05 | Query list researched before writing (demand, intent, competition), owner sees it | live |
 | R06 | Each article has a cover image generated with gpt-image-2 in Loore style | live |
 | R07 | SEO/AI layer on: sitemap, robots, JSON-LD, llms.txt, markdown twins, IndexNow | live |
-| R08 | Every article links to loore.ai with a clear call to try the product | live |
+| R08 | Every button and CTA leads to loore.ai with the blog promo code (from Kaelthas) so signups from the blog are attributable | live |
 | R09 | Copy rules: no invented numbers or claims about Loore features that do not exist | live |
 | R10 | Content pipeline reused from the EdgeLab blog (Kaelthas answer recorded in brief/) | live |
 | R11 | Analytics on (Yandex Metrika / GA4 or the Loore default) | live |
