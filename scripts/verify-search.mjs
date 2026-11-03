@@ -1,3 +1,4 @@
+import { verifyContext, guideDataPath } from "./verify-context.mjs";
 // verify-search.mjs — end-to-end check of the MiniSearch full-text search on the
 // prerendered catalog page (build/library.html).
 //
@@ -18,7 +19,8 @@ import net from "node:net";
 const require = createRequire(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const BUILD = join(ROOT, "build");
+const VERIFY = verifyContext();
+const BUILD = VERIFY.dir;
 
 // Resolve Playwright: prefer a local install, fall back to the global one
 // (global path differs per host — also resolve `npm root -g` so this runs on

@@ -18,8 +18,9 @@ if [ "${1:-}" != "--no-build" ]; then
   npm run build --silent
 fi
 
-if [ ! -f build/sitemap.xml ]; then
-  echo "[check] build/sitemap.xml missing — run without --no-build" >&2
+OUTPUT_DIR="$(node --input-type=module -e 'import { resolveBrandPaths } from "./scripts/brand-paths.mjs"; console.log(resolveBrandPaths().outputDir)')"
+if [ ! -f "$OUTPUT_DIR/sitemap.xml" ]; then
+  echo "[check] $OUTPUT_DIR/sitemap.xml missing — run without --no-build" >&2
   exit 1
 fi
 
