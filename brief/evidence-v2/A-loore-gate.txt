@@ -1,0 +1,44 @@
+# Slice A acceptance 2 — Loore build gate (fixture build, release:false)
+# build: BRAND_CONFIG=brands/loore/brand.config.json BRAND_CONTENT_DIR=tests/fixtures/loore/content-guides node scripts/prerender.mjs
+
+$ grep -rnaE 'edgelab|EdgeLab|109832554|G-J3H4311DJT|Ешиев|ИНН|go.edgelab.space|_home-hero-dashi|author-avatar' build-loore
+exit=1 (1 = no match)
+
+$ grep -rnaiE 'edgelab|ешиев|j3h4311|dashi' build-loore
+exit=1 (1 = no match)
+
+$ find build-loore -type f (paths, same pattern case-insensitive)
+0
+
+$ node scripts/build-manifest.mjs --verify build-loore
+build-manifest: OK /home/openclaw/.agent-jobs/thrall/jobs/261103-193833-d42d/work/build-loore
+exit=0
+
+$ find build-loore -type f | sort
+build-loore/404.html
+build-loore/about.html
+build-loore/build-manifest.json
+build-loore/claude-skills.html
+build-loore/gf-app.jsx
+build-loore/gf-styles.css
+build-loore/guide.html
+build-loore/guides-data.js
+build-loore/guides/fixture-brand-isolation.html
+build-loore/guides/fixture-brand-isolation.md
+build-loore/guides.html
+build-loore/image-slot.js
+build-loore/index.html
+build-loore/library.html
+build-loore/llms-full.txt
+build-loore/llms.txt
+build-loore/m/about.html
+build-loore/m/claude-skills.html
+build-loore/m/guides/fixture-brand-isolation.html
+build-loore/m/index.html
+build-loore/minisearch.min.js
+build-loore/m/library.html
+build-loore/mobile.html
+build-loore/robots.txt
+build-loore/scroll-depth.js
+build-loore/search-index.json
+build-loore/sitemap.xml
