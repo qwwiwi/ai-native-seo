@@ -7,8 +7,8 @@
      fonts were previously DUPLICATED on .gp / .phone / .vbox — a :root override
      could not reach those, so they are de-duped here. --lime is kept as a
      back-compat alias of --accent so existing var(--lime) usages need no change;
-     --bg resolves from --bg-light (dark theme swaps it to --bg-dark). EdgeLab
-     Space is the default brand — every value below equals the previous literal. */
+     --bg resolves from --bg-light (dark theme swaps it to --bg-dark). The
+     default brand's values — every value below equals the previous literal. */
   :root {
     /* palette (brand-tunable — mirrors brand.config.json → palette) */
     --accent:#D4FF00; --lime:var(--accent);
@@ -56,7 +56,7 @@
   .phone .gp-head-inner { max-width:none; padding:0 16px; }
   .gp-header.dark { background:var(--ink); color:#f4f4f0; border-bottom-color:rgba(255,255,255,0.14); }
 
-  /* real wordmark logo: edgelab▪space */
+  /* wordmark logo: first word ▪ rest of the brand name */
   .el-logo { font-family:var(--font-display); font-weight:600; font-size:20px; letter-spacing:-0.04em; display:inline-flex; align-items:baseline; color:inherit; text-decoration:none; cursor:pointer; line-height:1; user-select:none; flex:none; }
   .el-logo .a { color:inherit; }
   .el-logo .b { color:inherit; }
@@ -766,7 +766,7 @@
   .phone .m-content .gp-article-body { margin-left:0; margin-right:0; }
   .phone .m-content .gp-article-body pre.gp-code, .phone .m-content .gp-table { max-width:100%; }
 
-/* === LIVE (blog.edgelab.space): frameless mobile — убрать презентационный мокап iPhone (безель/статус-бар/home-indicator), контент во весь экран === */
+/* === LIVE (the published blog): frameless mobile — убрать презентационный мокап iPhone (безель/статус-бар/home-indicator), контент во весь экран === */
 .mobile-stage { min-height:0 !important; display:block !important; padding:0 !important; background:transparent !important; }
 .phone { width:100% !important; max-width:none !important; min-height:100vh; border:0 !important; border-radius:0 !important; box-shadow:none !important; overflow:visible !important; }
 .phone > .phone-status, .phone > .phone-home { display:none !important; }

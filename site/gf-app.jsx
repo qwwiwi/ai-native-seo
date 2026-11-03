@@ -1,47 +1,64 @@
 /* global React, ReactDOM, DesignCanvas, DCSection, DCArtboard, DCPostIt */
 const { useState } = React;
 
-// ---- white-label brand (M1) -----------------------------------------------
+// ---- brand data -------------------------------------------------------------
 // The portal is baked to static HTML with window.__BRAND injected into <head>
-// at build time from brand.config.json (see scripts/brand-client.mjs). Every
-// brand-tunable literal below reads from it, falling back to the current EdgeLab
-// Space values so the raw prototype (opened without an injected __BRAND) still
-// renders standalone. Swapping brand.config.json white-labels the whole UI.
+// at build time from the selected brand's config (scripts/brand-client.mjs).
+// This shared source carries NO brand identity: every name, link, counter id and
+// piece of brand copy comes from window.__BRAND (brand UI copy: BRAND.ui), and a
+// value the brand does not supply renders nothing — never another brand's value.
 const BRAND = (typeof window !== "undefined" && window.__BRAND) || {};
-const BRAND_NAME = BRAND.brandName || "EdgeLab Space";
-// Non-breaking-space variants so a multi-word brand name never wraps mid-name —
-// these reproduce the original `EdgeLab&nbsp;Space` / `EDGELAB&nbsp;SPACE`
-// literals (U+00A0 serializes back to &nbsp; in the prerendered HTML).
+const BRAND_NAME = BRAND.brandName || "";
+// Non-breaking-space variants so a multi-word brand name never wraps mid-name
+// (U+00A0 serializes back to &nbsp; in the prerendered HTML).
 const BRAND_NB = BRAND_NAME.replace(/ /g, "\u00A0");
 const BRAND_UPPER = BRAND_NAME.toUpperCase();
 const BRAND_UPPER_NB = BRAND_UPPER.replace(/ /g, "\u00A0");
 
 const FUNNEL = BRAND.funnel || {};
 // mode:"none" removes every community CTA / promo banner from the UI.
-const FUNNEL_ON = (FUNNEL.mode || "community") !== "none";
-const CTA_TEXT = FUNNEL.ctaText || "Вступить в сообщество";
-const FUNNEL_URL = (FUNNEL.targetUrl || "https://edgelab.space").replace(/\/+$/, "");
-const FUNNEL_OFFER = FUNNEL.offerText || "Закрытое AI-комьюнити: библиотека скиллов, живой чат, эфиры по средам.";
+const FUNNEL_ON = (FUNNEL.mode || "none") !== "none";
+const CTA_TEXT = FUNNEL.ctaText || "";
+const FUNNEL_URL = (FUNNEL.targetUrl || "").replace(/\/+$/, "");
+const FUNNEL_OFFER = FUNNEL.offerText || "";
 
-// Home-hero niche texts (white-label M1 step 5) — the niche layer of the home
-// page reads from config; EdgeLab literals are the fallbacks.
+// Home-hero niche texts — the niche layer of the home page reads from config.
 const HOME = BRAND.home || {};
-const HOME_EYEBROW = HOME.eyebrow || "AI ПОРТАЛ";
-const HOME_TITLE = HOME.title || "Статьи и гайды по трендовым AI решениям";
-const HOME_DESC = HOME.description || "Разбираю на практике Claude Code, дизайн с AI, базы знаний и автоматизацию – живым языком, без сухих инструкций.";
-const HOME_CTA_TEXT = HOME.ctaText || "Начать внедрение";
-const HOME_CTA_HREF = HOME.ctaHref || "/guides/kak-vnedrit-ai-agentov/";
-const HOME_HERO_IMG = HOME.heroImage || "/covers/_home-hero-dashi.webp";
+const HOME_EYEBROW = HOME.eyebrow || "";
+const HOME_TITLE = HOME.title || "";
+const HOME_DESC = HOME.description || "";
+const HOME_CTA_TEXT = HOME.ctaText || "";
+const HOME_CTA_HREF = HOME.ctaHref || "";
+const HOME_HERO_IMG = HOME.heroImage || "";
 
 const AUTHOR = BRAND.author || {};
-const AUTHOR_NAME = AUTHOR.name || "Даши Ешиев";
-const LEGAL_NAME = AUTHOR.legal || "EdgeLab Space";
-const LEGAL_ENTITY = AUTHOR.legalEntity || "ИП ЕШИЕВ ЦЫРЕН-ДАШИ БУЛАТОВИЧ · ИНН 032315681243";
+const AUTHOR_NAME = AUTHOR.name || "";
+const LEGAL_NAME = AUTHOR.legal || "";
+const LEGAL_ENTITY = AUTHOR.legalEntity || "";
+
+// Public counter ids the client reports to (null → no counter calls at all).
+const ANALYTICS = BRAND.analytics || {};
+const METRIKA_ID = ANALYTICS.metrika ? Number(ANALYTICS.metrika) : null;
+
+// Brand UI copy (scripts/brand-paths.mjs loadBrandUi). Strings are templates:
+// {brand} {brandNb} {brandUpper} {brandUpperNb} {tg} {author}. A missing key → "".
+const UI = BRAND.ui || {};
+const ui = (path) => path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), UI);
+function fill(t) {
+  if (t == null) return "";
+  return String(t)
+    .replace(/\{brandUpperNb\}/g, BRAND_UPPER_NB).replace(/\{brandUpper\}/g, BRAND_UPPER)
+    .replace(/\{brandNb\}/g, BRAND_NB).replace(/\{brand\}/g, BRAND_NAME)
+    .replace(/\{tg\}/g, (BRAND.telegram && BRAND.telegram.channelName) || "")
+    .replace(/\{author\}/g, AUTHOR_NAME);
+}
+const T = (path) => fill(ui(path));
+const uiList = (path) => (Array.isArray(ui(path)) ? ui(path) : []);
 
 // Community-landing apex host — the click-time UTM forwarder rewrites only links
-// that point here. Derived from the funnel target so white-labels work too.
+// that point here. Derived from the funnel target ("" → no forwarding).
 const FUNNEL_HOST = (() => {
-  try { return new URL(FUNNEL_URL).hostname.replace(/^www\./, ""); } catch (_) { return "edgelab.space"; }
+  try { return FUNNEL_URL ? new URL(FUNNEL_URL).hostname.replace(/^www\./, "") : ""; } catch (_) { return ""; }
 })();
 
 // Funnel UTM is brand data (funnel.utm in the brand config): source / campaign /
@@ -69,11 +86,12 @@ const utm = (m) => `${FUNNEL_URL}/?utm_source=${UTM_SOURCE}&utm_medium=${m}&utm_
 
 // UTM forwarding (prince 2026-06-17): a visitor who arrives from the IG bio link
 // (?utm_source=instagram…) must keep that origin across blog navigation, and the
-// community CTA must pass the REAL source to edgelab.space — not «guides» (which
-// overwrote it). Capture the inbound UTM once per session; on any click of a link
-// to the community landing (apex edgelab.space — NOT blog./platform.) rewrite its
+// community CTA must pass the REAL source to the funnel landing — not «guides»
+// (which overwrote it). Capture the inbound UTM once per session; on any click of a
+// link to the funnel landing (its apex host — NOT blog./platform.) rewrite its
 // query to carry the preserved origin + a «blog-» touchpoint. Click-time rewrite
-// is prerender/hydration-safe (no SSR markup change).
+// is prerender/hydration-safe (no SSR markup change). Off for a brand without a
+// community funnel (funnel.mode "none" / no target host).
 function captureInboundUTM() {
   try {
     const p = new URLSearchParams(location.search);
@@ -93,7 +111,7 @@ function wireUTMForward() {
     if (u.hostname.replace(/^www\./, "") !== FUNNEL_HOST) return; // community landing apex only (blog./platform. excluded)
     // Touchpoint = the blog page the click came FROM (read at click time, so it is
     // correct under any navigation), not the link's baked-in slug. This replaces the
-    // hardcoded SLUG placeholder and also tags bare in-article links to edgelab.space.
+    // hardcoded SLUG placeholder and also tags bare in-article links to the landing.
     const path = location.pathname.replace(/\/+$/, "");
     const gm = path.match(/\/guides\/([^/]+)/);
     const touch = gm
@@ -113,7 +131,7 @@ function wireUTMForward() {
 }
 // Wire unconditionally when a DOM exists — each helper guards its own sessionStorage
 // access, so organic «guides» forwarding still works even if storage is unavailable.
-try { if (typeof window !== "undefined" && window.document) { captureInboundUTM(); wireUTMForward(); } } catch (_) {}
+try { if (FUNNEL_ON && FUNNEL_HOST && typeof window !== "undefined" && window.document) { captureInboundUTM(); wireUTMForward(); } } catch (_) {}
 
 // M-theme: persist the chosen theme across pages. Default light; dark sticks.
 // getStoredTheme seeds React state from localStorage; applyTheme mirrors the
@@ -163,7 +181,7 @@ function ThemeToggle({ night, onClick }) {
 function Logo() {
   // clicking the logo (header/footer/drawer) goes to the home page. The two-part
   // wordmark is derived from the brand name (first word + the rest), so a
-  // white-label brand renders its own name; EdgeLab Space → «edgelab ▪ space».
+  // brand renders its own name; «Two Words» → «two ▪ words».
   const parts = BRAND_NAME.split(/\s+/);
   const a = (parts[0] || BRAND_NAME).toLowerCase();
   const b = parts.slice(1).join(" ").toLowerCase();
@@ -172,13 +190,15 @@ function Logo() {
   );
 }
 // Author byline under the title (guides + articles), Substack-style author header.
-// `meta` = optional read-time/date shown after the author («Даши Ешиев · 15 мин чтения»).
+// `meta` = optional read-time/date shown after the author («Автор · 15 мин чтения»).
 // `author` = the article's frontmatter author (same name as its JSON-LD author,
-// scripts/build-seo.mjs); the brand author is the fallback.
+// scripts/build-seo.mjs); the brand author is the fallback. Avatar, label and the
+// channel link are brand data (BRAND.ui.byline) — a brand without it has no byline.
 function Byline({ author, meta }) {
+  if (!ui("byline")) return null;
   return (
-    <a className="gp-byline" href={TG} target="_blank" rel="noopener" aria-label="Канал «Записки AI-энтузиаста»">
-      <img className="gp-byline-av" src="/images/author-avatar.png" alt="" width="40" height="40" loading="lazy" />
+    <a className="gp-byline" href={TG} target="_blank" rel="noopener" aria-label={T("byline.ariaLabel")}>
+      <img className="gp-byline-av" src={ui("byline.avatar")} alt="" width="40" height="40" loading="lazy" />
       <span className="gp-byline-txt">
         <span className="gp-byline-ch">{TG_NAME}</span>
         <span className="gp-byline-au">{author || AUTHOR_NAME}{meta ? " · " + meta : ""}</span>
@@ -187,11 +207,11 @@ function Byline({ author, meta }) {
   );
 }
 
-const TG = (BRAND.telegram && BRAND.telegram.channelUrl) || "https://t.me/dashi_agent";
-const TG_NAME = (BRAND.telegram && BRAND.telegram.channelName) || "Записки AI-энтузиаста";
+const TG = (BRAND.telegram && BRAND.telegram.channelUrl) || "";
+const TG_NAME = (BRAND.telegram && BRAND.telegram.channelName) || "";
 // funnel docs + landing links (footer)
-const DOC_PRIVACY = (FUNNEL.docs && FUNNEL.docs.privacy) || "https://drive.google.com/file/d/1hUEZbJBCdTQcpBqy_OAd8EupZwY9Xpx1/view";
-const DOC_OFFER = (FUNNEL.docs && FUNNEL.docs.offer) || "https://drive.google.com/file/d/1i6XeY6SMcuA4uYYxBVpxEPN_EI_AeIH6/view";
+const DOC_PRIVACY = (FUNNEL.docs && FUNNEL.docs.privacy) || "";
+const DOC_OFFER = (FUNNEL.docs && FUNNEL.docs.offer) || "";
 // Footer «streams» / «chat» lead to the landing itself with a placement UTM: a
 // #streams / #community anchor is not guaranteed to exist on a brand's landing
 // (a rebuilt landing dropped them → dead links), and the tag keeps the click
@@ -244,7 +264,7 @@ function MobileMenuPanel({ cur, open, onClose }) {
         <nav className="m-drawer-nav">
           {NAV.map(([k, l]) => (<a key={k} className={cur === k ? "cur" : ""} href={P(k)}>{l}</a>))}
         </nav>
-        {FUNNEL_ON && <div className="m-drawer-group">Сообщество</div>}
+        {FUNNEL_ON && !!T("drawerGroup") && <div className="m-drawer-group">{T("drawerGroup")}</div>}
         {FUNNEL_ON && <div className="m-drawer-foot"><a className="m-drawer-join" href={utm("header")}>{CTA_TEXT} →</a></div>}
       </div>
     </div>
@@ -290,7 +310,7 @@ function Header({ dark, util, search = false, night, onToggle, cur = "claude" })
         <div className="gp-util">
           <span className="grp"><span><span className="sq"></span>16 ГАЙДОВ</span><span>· MCP</span><span>· CLAUDE CODE</span><span>· АВТОМАТИЗАЦИЯ ВИДЕО</span></span>
           <span className="spacer"></span>
-          <span className="live"><span className="live-dot"></span>ЭФИР В СРЕДУ · 16:00 МСК</span>
+          {!!T("headerLive") && <span className="live"><span className="live-dot"></span>{T("headerLive")}</span>}
         </div>
       )}
     </React.Fragment>
@@ -298,11 +318,13 @@ function Header({ dark, util, search = false, night, onToggle, cur = "claude" })
 }
 
 /* ---------- banners ---------- */
+// Every banner/CTA below renders only with a community funnel AND the brand's own
+// copy for it (BRAND.ui) — no built-in copy.
 function BannerStrip() {
-  if (!FUNNEL_ON) return null;
+  if (!FUNNEL_ON || !ui("bannerStrip")) return null;
   return (
     <div className="ban-strip">
-      <span className="gp-eyebrow"><span className="dot"></span>{BRAND_UPPER_NB}</span>
+      <span className="gp-eyebrow"><span className="dot"></span>{T("bannerStrip.eyebrow")}</span>
       <span className="txt">{FUNNEL_OFFER}</span>
       <span className="spacer"></span>
       <a className="btn" href={utm("banner")}>{CTA_TEXT} →</a>
@@ -310,24 +332,24 @@ function BannerStrip() {
   );
 }
 function BannerCard({ dark }) {
-  if (!FUNNEL_ON) return null;
+  if (!FUNNEL_ON || !ui("bannerCard")) return null;
   return (
     <div className="ban-card">
       <div className="body">
-        <span className="gp-eyebrow"><span className="dot"></span>ЗАКРЫТОЕ AI-КОМЬЮНИТИ</span>
-        <span className="offer">Библиотека готовых скиллов, живой чат и эфиры – внутри {BRAND_NB}</span>
+        <span className="gp-eyebrow"><span className="dot"></span>{T("bannerCard.eyebrow")}</span>
+        <span className="offer">{T("bannerCard.offer")}</span>
       </div>
       <span className="spacer"></span>
-      <a className="btn" href={utm("banner")}>Вступить →</a>
+      <a className="btn" href={utm("banner")}>{T("bannerCard.button")}</a>
     </div>
   );
 }
 function BannerDark() {
-  if (!FUNNEL_ON) return null;
+  if (!FUNNEL_ON || !ui("bannerDark")) return null;
   return (
     <div className="ban-dark">
-      <span className="gp-eyebrow lime"><span className="live-dot"></span>ЭФИР В СРЕДУ</span>
-      <span>Закрытое AI-комьюнити {BRAND_NB} – <span className="lime">библиотека, живой чат, эфиры по средам</span>.</span>
+      <span className="gp-eyebrow lime"><span className="live-dot"></span>{T("bannerDark.eyebrow")}</span>
+      <span>{T("bannerDark.lead")}<span className="lime">{T("bannerDark.accent")}</span>{T("bannerDark.tail")}</span>
       <span className="spacer"></span>
     </div>
   );
@@ -348,13 +370,11 @@ function Sidebar({ mini, group, items, active }) {
           ? <a key={i} href={GUIDE_HREF(slug)} className={cls}>{label}</a>
           : <span key={i} className={cls}>{label}</span>;
       })}
-      {mini && FUNNEL_ON && (
+      {mini && FUNNEL_ON && !!ui("sideMini") && (
         <div className="gp-side-mini">
-          <div className="h"><span className="live-dot"></span>Что внутри Space</div>
+          <div className="h"><span className="live-dot"></span>{T("sideMini.title")}</div>
           <ul>
-            <li>Готовые скиллы и юзкейсы</li>
-            <li>Живой чат с агентами</li>
-            <li>Эфиры по средам</li>
+            {uiList("sideMini.items").map((t, i) => <li key={i}>{fill(t)}</li>)}
           </ul>
           <a className="btn" href={utm("banner")}>{CTA_TEXT}</a>
         </div>
@@ -364,43 +384,42 @@ function Sidebar({ mini, group, items, active }) {
 }
 
 /* ---------- end CTA ---------- */
+function CtaBullets({ path }) {
+  return (
+    <div className="cta-bullets">
+      {uiList(path).map((t, i) => <div className="b" key={i}><span className="m"></span>{fill(t)}</div>)}
+    </div>
+  );
+}
 function CtaDark({ grid, social }) {
-  if (!FUNNEL_ON) return null;
+  if (!FUNNEL_ON || !ui("cta")) return null;
   return (
     <div className={"cta-dark" + (grid ? " grid" : "")}>
       <div className="cta-brand"><Logo /></div>
-      <div className="ttl">Дальше – вместе с сообществом</div>
-      <div className="sub">Гайд прочитан. Внедрять – проще не в одиночку, а в закрытом AI-комьюнити.</div>
-      <div className="cta-bullets">
-        <div className="b"><span className="m"></span>Библиотека готовых скиллов и юзкейсов для Claude и Codex</div>
-        <div className="b"><span className="m"></span>Живой чат, где общаются и люди, и их агенты</div>
-        <div className="b"><span className="m"></span>Эфиры по средам и готовые решения под реальные задачи</div>
-      </div>
+      <div className="ttl">{T("cta.title")}</div>
+      <div className="sub">{T("cta.sub")}</div>
+      <CtaBullets path="cta.bullets" />
       <div className="cta-foot">
-        <a className="cta-btn" href={utm("cta")}>Вступить в {BRAND_NB} →</a>
-        <span className="cta-fine">Мгновенный доступ. Отмена в один клик.</span>
+        <a className="cta-btn" href={utm("cta")}>{T("cta.button")}</a>
+        <span className="cta-fine">{T("cta.fine")}</span>
       </div>
-      {social && (
-        <div className="cta-social"><span className="live-dot"></span>В чате сейчас 320+ участников и их агенты</div>
+      {social && !!T("cta.social") && (
+        <div className="cta-social"><span className="live-dot"></span>{T("cta.social")}</div>
       )}
     </div>
   );
 }
 function CtaLime() {
-  if (!FUNNEL_ON) return null;
+  if (!FUNNEL_ON || !ui("cta")) return null;
   return (
     <div className="cta-lime">
       <span className="gp-eyebrow"><span className="dot" style={{ background: "var(--ink)" }}></span>{BRAND_UPPER_NB}</span>
-      <div className="ttl">Дальше – вместе с сообществом</div>
-      <div className="sub">Гайд прочитан. Внедрять – проще не в одиночку, а в закрытом AI-комьюнити.</div>
-      <div className="cta-bullets">
-        <div className="b"><span className="m"></span>Библиотека готовых скиллов и юзкейсов для Claude и Codex</div>
-        <div className="b"><span className="m"></span>Живой чат, где общаются и люди, и их агенты</div>
-        <div className="b"><span className="m"></span>Эфиры по средам и готовые решения под реальные задачи</div>
-      </div>
+      <div className="ttl">{T("cta.title")}</div>
+      <div className="sub">{T("cta.sub")}</div>
+      <CtaBullets path="cta.bullets" />
       <div className="cta-foot">
-        <a className="cta-btn" href={utm("cta")}>Вступить в {BRAND_NB} →</a>
-        <span className="cta-fine">Мгновенный доступ. Отмена в один клик.</span>
+        <a className="cta-btn" href={utm("cta")}>{T("cta.button")}</a>
+        <span className="cta-fine">{T("cta.fine")}</span>
       </div>
     </div>
   );
@@ -447,7 +466,7 @@ function VideoEmbed({ title }) {
           <span className="ve-badge">YouTube</span>
           <span className="ve-play"><svg width="20" height="22" viewBox="0 0 20 22" aria-hidden="true"><path d="M3 2l15 9-15 9V2z" fill="#0A0A0A"></path></svg></span>
         </div>
-        <div className="ve-bar"><span className="pdot"></span>{title || "Как настроить MCP за 5 минут · EdgeLab"}</div>
+        <div className="ve-bar"><span className="pdot"></span>{title || "Как настроить MCP за 5 минут"}</div>
       </div>
       <figcaption>Видео с YouTube встраивается в статью, 16:9, грузится по клику</figcaption>
     </figure>
@@ -661,7 +680,7 @@ const ARTICLES = {
         <h2>2. Ритуал важнее разовых запросов</h2>
         <p>Переломный момент — когда сводки перестали быть разовыми. Я завёл привычку: каждое утро в 10:00 Hermes присылает короткий разбор по тем источникам, что мы вместе отобрали. Не «когда вспомню», а по расписанию.</p>
         <p>Вот как это выглядит вживую — короткое видео, где из десятка источников рождается сводка на пару абзацев.</p>
-        <VideoEmbed title="Утренние сводки с Hermes · EdgeLab" />
+        <VideoEmbed title="Утренние сводки с Hermes" />
         <p><b>Что я понял:</b> ценность не в одном гениальном ответе, а в привычке. Регулярность бьёт интеллект.</p>
         <h2>3. Петля обратной связи всё меняет</h2>
         <p>Самое полезное — быстро поправлять. Hermes выдал, я сказал «вот это лишнее, а вот этого не хватает», он запомнил это как правило, и следующая сводка стала точнее. За пару недель ответы стали такими, будто их собирал я сам, только без потраченного часа.</p>
@@ -710,7 +729,7 @@ const ARTICLES = {
         <h2>2. Ревью на автомате — то, ради чего стоит остаться</h2>
         <p>Главное открытие — Codex как первый ревьюер. Он проходит по пул-реквесту раньше меня и ловит мелочи, на которые у живого человека уже не хватает внимания. Я прихожу к ревью, когда половина замечаний уже снята.</p>
         <p>Вот как это выглядит на практике — короткое видео разбора одного PR.</p>
-        <VideoEmbed title="Codex ревьюит пул-реквест · EdgeLab" />
+        <VideoEmbed title="Codex ревьюит пул-реквест" />
         <p><b>Что я понял:</b> агент-ревьюер экономит не столько время, сколько внимание команды для действительно важного.</p>
         <h2>3. Песочницу и доступы — сразу</h2>
         <p>Единственное, обо что я споткнулся, — доступы. Поначалу дал слишком много, потом испугался и закрутил гайки так, что он перестал быть полезным. Золотая середина нашлась быстро, но лучше продумать её заранее.</p>
@@ -932,7 +951,7 @@ function Footer() {
       <div className="gp-foot-main">
         <div className="gp-foot-brand">
           <Logo />
-          <p>Портал об AI-агентах: Claude Code, Hermes и Codex. Гайды, статьи и живое сообщество — от Даши Ешиева и канала «{TG_NAME}».</p>
+          {!!T("footer.about") && <p>{T("footer.about")}</p>}
         </div>
         <div className="gp-foot-cols">
           <div className="col">
@@ -944,27 +963,31 @@ function Footer() {
           <div className="col">
             <div className="h">{BRAND_NAME}</div>
             <a href={utm("footer")}>{CTA_TEXT} →</a>
-            <a href={ELS_STREAMS} target="_blank" rel="noopener">Эфиры по средам</a>
-            <a href={ELS_COMMUNITY} target="_blank" rel="noopener">Живой чат</a>
+            {!!T("footer.streams") && <a href={ELS_STREAMS} target="_blank" rel="noopener">{T("footer.streams")}</a>}
+            {!!T("footer.community") && <a href={ELS_COMMUNITY} target="_blank" rel="noopener">{T("footer.community")}</a>}
           </div>
           )}
           <div className="col">
             <div className="h">Контакты</div>
-            <a href={TG} target="_blank" rel="noopener">Канал «{TG_NAME}»</a>
+            {!!TG && !!T("footer.channel") && <a href={TG} target="_blank" rel="noopener">{T("footer.channel")}</a>}
             <a href={P("about")}>О проекте</a>
           </div>
+          {!!(DOC_PRIVACY || DOC_OFFER) && (
           <div className="col">
             <div className="h">Документы</div>
-            <a href={DOC_PRIVACY} target="_blank" rel="noopener">Политика конфиденциальности</a>
-            <a href={DOC_OFFER} target="_blank" rel="noopener">Договор оферты</a>
+            {!!DOC_PRIVACY && <a href={DOC_PRIVACY} target="_blank" rel="noopener">Политика конфиденциальности</a>}
+            {!!DOC_OFFER && <a href={DOC_OFFER} target="_blank" rel="noopener">Договор оферты</a>}
           </div>
+          )}
         </div>
       </div>
+      {!!LEGAL_NAME && (
       <div className="gp-foot-bottom">
         <span>© 2026 {LEGAL_NAME.toUpperCase()}</span>
         <span className="spacer"></span>
         <span>{LEGAL_ENTITY}</span>
       </div>
+      )}
       </div>
     </footer>
   );
@@ -990,7 +1013,7 @@ function GuidePage({ dir, initialTheme, banner, cta, mini, social, rich, article
 }
 
 /* ---------- mobile (variant C) ---------- */
-const PAGE_MD = `# Claude Code: настройка проекта с нуля\n\nИсточник: guides.edgelab.su · обновлено 12 июня 2026\n\nКак собрать рабочее окружение Claude Code за вечер — от установки до первого агента.\n\n## Зачем настройка\nClaude Code точнее, когда проект описан явно. Полчаса на настройку окупаются на первой же задаче.\n\n## Шаги\n1. Установи Claude Code\n2. Опиши проект в CLAUDE.md\n3. Подключи MCP filesystem + git\n\n— через ${BRAND_NAME} (${FUNNEL_HOST})`;
+const PAGE_MD = `# Claude Code: настройка проекта с нуля\n\nОбновлено 12 июня 2026\n\nКак собрать рабочее окружение Claude Code за вечер — от установки до первого агента.\n\n## Зачем настройка\nClaude Code точнее, когда проект описан явно. Полчаса на настройку окупаются на первой же задаче.\n\n## Шаги\n1. Установи Claude Code\n2. Опиши проект в CLAUDE.md\n3. Подключи MCP filesystem + git\n\n— через ${BRAND_NAME} (${FUNNEL_HOST})`;
 function MobileC({ initialTheme, scroll, demoScrolled }) {
   const [theme, setTheme] = useState(getStoredTheme(initialTheme));
   const night = theme === "dark";
@@ -1015,11 +1038,11 @@ function MobileC({ initialTheme, scroll, demoScrolled }) {
           <button className="gp-toggle" type="button" onClick={toggle}>{night ? <SunIcon /> : <MoonIcon />}</button>
           <button className="m-burger" type="button"><span></span><span></span><span></span></button>
         </div>
-        {FUNNEL_ON && (
+        {FUNNEL_ON && !!T("mobile.bannerHome") && (
         <div className="m-banner">
           <span className="live-dot"></span>
-          <span className="m-banner-txt">Закрытое AI-комьюнити {BRAND_NAME}</span>
-          <a className="m-banner-cta" href={utm("banner")}>Вступить →</a>
+          <span className="m-banner-txt">{T("mobile.bannerHome")}</span>
+          <a className="m-banner-cta" href={utm("banner")}>{T("mobile.bannerCta")}</a>
         </div>
         )}
         <div className="m-content">
@@ -1039,18 +1062,14 @@ function MobileC({ initialTheme, scroll, demoScrolled }) {
           <StepsGuide />
           <Faq />
           <Changelog />
-          {FUNNEL_ON && (
+          {FUNNEL_ON && !!ui("mobile") && (
           <div className="m-cta">
             <div className="cta-brand"><Logo /></div>
-            <div className="ttl">Дальше – вместе</div>
-            <div className="sub">Внедрять проще в закрытом комьюнити.</div>
-            <div className="cta-bullets">
-              <div className="b"><span className="m"></span>Готовые скиллы и юзкейсы</div>
-              <div className="b"><span className="m"></span>Живой чат с людьми и агентами</div>
-              <div className="b"><span className="m"></span>Эфиры по средам</div>
-            </div>
+            <div className="ttl">{T("mobile.ctaTitleShort")}</div>
+            <div className="sub">{T("mobile.ctaSubShort")}</div>
+            <CtaBullets path="mobile.ctaBullets" />
             <a className="btn" href={utm("cta")}>{CTA_TEXT} →</a>
-            <div className="price">Отмена в один клик</div>
+            <div className="price">{T("mobile.ctaFine")}</div>
           </div>
           )}
         </div>
@@ -1058,10 +1077,10 @@ function MobileC({ initialTheme, scroll, demoScrolled }) {
           <Logo />
           <div className="m-foot-cols">
             <div className="col"><div className="h">Гайды</div><CatLinks /></div>
-            {FUNNEL_ON && <div className="col"><div className="h">{BRAND_NAME}</div><a href={utm("footer")}>Перейти →</a><a href={ELS_STREAMS} target="_blank" rel="noopener">Эфиры</a></div>}
-            <div className="col"><div className="h">Документы</div><a href={DOC_PRIVACY} target="_blank" rel="noopener">Политика</a><a href={DOC_OFFER} target="_blank" rel="noopener">Оферта</a></div>
+            {FUNNEL_ON && <div className="col"><div className="h">{BRAND_NAME}</div><a href={utm("footer")}>Перейти →</a>{!!T("footer.streamsShort") && <a href={ELS_STREAMS} target="_blank" rel="noopener">{T("footer.streamsShort")}</a>}</div>}
+            {!!(DOC_PRIVACY || DOC_OFFER) && <div className="col"><div className="h">Документы</div>{!!DOC_PRIVACY && <a href={DOC_PRIVACY} target="_blank" rel="noopener">Политика</a>}{!!DOC_OFFER && <a href={DOC_OFFER} target="_blank" rel="noopener">Оферта</a>}</div>}
           </div>
-          <div className="m-foot-bottom">© 2026 {LEGAL_NAME.toUpperCase()}<br />{LEGAL_ENTITY}</div>
+          {!!LEGAL_NAME && <div className="m-foot-bottom">© 2026 {LEGAL_NAME.toUpperCase()}<br />{LEGAL_ENTITY}</div>}
         </div>
       </div>
     </div>
@@ -1075,11 +1094,11 @@ function MobileArticle({ article, initialTheme }) {
     <div className={"phone home theme-" + theme}>
       <div className="gp-m">
         <PortalHead cur={a.cur} mobile={true} night={night} onToggle={() => flipTheme(setTheme)} />
-        {FUNNEL_ON && (
+        {FUNNEL_ON && !!T("mobile.banner") && (
         <div className="m-banner">
           <span className="live-dot"></span>
-          <span className="m-banner-txt">Эфир в среду · закрытое AI-комьюнити</span>
-          <a className="m-banner-cta" href={utm("banner")}>Вступить →</a>
+          <span className="m-banner-txt">{T("mobile.banner")}</span>
+          <a className="m-banner-cta" href={utm("banner")}>{T("mobile.bannerCta")}</a>
         </div>
         )}
         <div className="m-content">
@@ -1110,11 +1129,11 @@ function MobileArticle({ article, initialTheme }) {
           )}
           {/* contextual links right after the text, ahead of the CTA (as on desktop) */}
           <RelatedGuides items={a.related} />
-          {FUNNEL_ON && (
+          {FUNNEL_ON && !!T("mobile.ctaTitle") && (
           <div className="m-cta">
             <div className="cta-brand"><Logo /></div>
-            <div className="ttl">Дальше – вместе с сообществом</div>
-            <div className="sub">Внедрять проще в закрытом AI-комьюнити.</div>
+            <div className="ttl">{T("mobile.ctaTitle")}</div>
+            <div className="sub">{T("mobile.ctaSub")}</div>
             <a className="btn" href={utm("cta")}>{CTA_TEXT} →</a>
           </div>
           )}
@@ -1126,7 +1145,7 @@ function MobileArticle({ article, initialTheme }) {
             <div className="col"><div className="h">Разделы</div><CatLinks /></div>
             <div className="col"><div className="h">Проект</div><a href={P("library")}>Все гайды</a><a href={P("about")}>О проекте</a></div>
           </div>
-          <div className="m-foot-bottom">© 2026 {LEGAL_NAME.toUpperCase()}<br />{LEGAL_ENTITY}</div>
+          {!!LEGAL_NAME && <div className="m-foot-bottom">© 2026 {LEGAL_NAME.toUpperCase()}<br />{LEGAL_ENTITY}</div>}
         </div>
       </div>
     </div>
@@ -1146,11 +1165,11 @@ function MobileMenu({ initialTheme }) {
           <button className="gp-toggle" type="button" onClick={() => flipTheme(setTheme)}>{night ? <SunIcon /> : <MoonIcon />}</button>
           <button className="m-burger" type="button" onClick={() => setOpen((o) => !o)}><span></span><span></span><span></span></button>
         </div>
-        {FUNNEL_ON && (
+        {FUNNEL_ON && !!T("mobile.bannerHome") && (
         <div className="m-banner">
           <span className="live-dot"></span>
-          <span className="m-banner-txt">Закрытое AI-комьюнити {BRAND_NAME}</span>
-          <span className="m-banner-cta">Вступить →</span>
+          <span className="m-banner-txt">{T("mobile.bannerHome")}</span>
+          <span className="m-banner-cta">{T("mobile.bannerCta")}</span>
         </div>
         )}
         <div className="m-content">
@@ -1537,7 +1556,7 @@ function Home({ initialTheme, mobile, idp = "h" }) {
               <span className="eyebrow"><span className="dot"></span>{HOME_EYEBROW}</span>
               <h1>{HOME_TITLE}</h1>
               <p className="desc">{HOME_DESC}</p>
-              <a className="read" href={HOME_CTA_HREF}><span className="circ">→</span><span className="lbl">{HOME_CTA_TEXT}</span></a>
+              {!!(HOME_CTA_HREF && HOME_CTA_TEXT) && <a className="read" href={HOME_CTA_HREF}><span className="circ">→</span><span className="lbl">{HOME_CTA_TEXT}</span></a>}
             </div>
             <div className="media">
               <Slot id={idp + "-hero"} ph="" r={0} fit="contain" src={HOME_HERO_IMG} />
@@ -1629,9 +1648,12 @@ function CategoryPage({ cat, initialTheme, mobile, idp }) {
 }
 
 /* ===== About page ===== */
+// All about-page copy is brand data (BRAND.ui.about). Without it the page shows the
+// brand name and its home description only — no borrowed author/community story.
 function AboutPage({ initialTheme, mobile }) {
   const [theme, setTheme] = useState(getStoredTheme(initialTheme));
   const night = theme === "dark";
+  const about = ui("about");
   return (
     <div className={(mobile ? "phone " : "") + "home gp dir-c theme-" + theme} style={mobile ? {} : { width: "100%", position: "relative" }}>
       <PortalHead cur="about" mobile={mobile} night={night} onToggle={() => flipTheme(setTheme)} />
@@ -1640,39 +1662,41 @@ function AboutPage({ initialTheme, mobile }) {
           <div className="home-hero-inner">
             <div className="txt">
               <span className="eyebrow"><span className="dot"></span>О проекте</span>
-              <h1>{BRAND_NAME} — портал об AI-агентах</h1>
-              <p className="desc">Гайды, статьи и живое сообщество вокруг Claude Code, Hermes и Codex. Здесь я собираю то, что реально работает на практике, и разбираю это простым языком.</p>
-              <a className="read" href={TG} target="_blank" rel="noopener"><span className="circ">→</span><span className="lbl">Телеграм-канал «{TG_NAME}»</span></a>
+              <h1>{about ? T("about.title") : BRAND_NAME}</h1>
+              <p className="desc">{about ? T("about.description") : HOME_DESC}</p>
+              {!!TG && !!T("about.channelLink") && <a className="read" href={TG} target="_blank" rel="noopener"><span className="circ">→</span><span className="lbl">{T("about.channelLink")}</span></a>}
             </div>
+            {!!ui("about.heroImage") && (
             <div className="media">
-              <Slot id="about-hero" ph="" r={0} position="50% 35%" src="/covers/_about-hero.webp" />
+              <Slot id="about-hero" ph="" r={0} position="50% 35%" src={ui("about.heroImage")} />
             </div>
+            )}
           </div>
         </div>
 
+        {!!about && (
         <div className="about-grid">
           <div className="about-main">
-            <h2>Привет, я {AUTHOR_NAME}</h2>
-            <p>Я веду телеграм-канал <a href={TG} target="_blank" rel="noopener" className="lnk">«{TG_NAME}»</a> и каждый день работаю с AI-агентами на реальных задачах. {BRAND_NAME} — это место, куда я переношу всё самое полезное: не сухие инструкции, а живые истории о том, что сработало, что сломалось и почему.</p>
-            <p>Мне важно, чтобы материалы читались как разговор с коллегой, а не как документация. Поэтому каждый гайд — это личный опыт, проверенный на своих проектах, с примерами и честными выводами.</p>
-            <h2>Что внутри сообщества</h2>
+            <h2>{T("about.hello")}</h2>
+            <p>{T("about.introLead")}{!!TG && <a href={TG} target="_blank" rel="noopener" className="lnk">{T("about.introLink")}</a>}{T("about.introTail")}</p>
+            {uiList("about.paragraphs").map((t, i) => <p key={i}>{fill(t)}</p>)}
+            <h2>{T("about.featuresTitle")}</h2>
             <div className="about-feats">
-              <div className="af"><span className="m"></span><div><b>Библиотека скиллов и юзкейсов</b><p>Готовые решения для Claude Code, Hermes и Codex — бери и применяй.</p></div></div>
-              <div className="af"><span className="m"></span><div><b>Живой чат</b><p>Место, где общаются и люди, и их агенты. Вопрос не останется без ответа.</p></div></div>
-              <div className="af"><span className="m"></span><div><b>Эфиры по средам</b><p>Разбираем свежие темы и реальные задачи в прямом эфире.</p></div></div>
+              {uiList("about.features").map(([b, p], i) => <div className="af" key={i}><span className="m"></span><div><b>{fill(b)}</b><p>{fill(p)}</p></div></div>)}
             </div>
           </div>
-          {FUNNEL_ON && (
+          {FUNNEL_ON && !!ui("about.card") && (
           <aside className="about-side">
             <div className="about-card">
-              <span className="gp-eyebrow"><span className="dot"></span>{BRAND_UPPER}</span>
-              <div className="ac-title">Присоединяйся к сообществу</div>
-              <p>Закрытое AI-комьюнити: библиотека, живой чат и эфиры. Отмена в один клик.</p>
+              <span className="gp-eyebrow"><span className="dot"></span>{T("about.card.eyebrow")}</span>
+              <div className="ac-title">{T("about.card.title")}</div>
+              <p>{T("about.card.text")}</p>
               <a className="ac-btn" href={utm("about")}>{CTA_TEXT} →</a>
             </div>
           </aside>
           )}
         </div>
+        )}
       </div>
       <Footer />
     </div>
@@ -1771,17 +1795,18 @@ function App() {
 // utm_medium=<placement> (header/banner/cta/footer/about); we read it so GA4 +
 // Yandex.Metrika see WHICH placement converts. Capture-phase → fires before the
 // page navigates away. Guarded: no-op during prerender (no gtag/ym) or if blocked.
-if (typeof document !== "undefined" && !window.__gfCtaBound) {
+// The Metrika counter id is brand data (BRAND.analytics.metrika; null → no call).
+if (FUNNEL_ON && FUNNEL_HOST && typeof document !== "undefined" && !window.__gfCtaBound) {
   window.__gfCtaBound = true;
   document.addEventListener("click", (e) => {
-    // Scope to the community-join destination only (edgelab.space). Without the
-    // host filter, an editorial workshop link (edgelab.su, utm_campaign=workshop)
+    // Scope to the community-join destination only (the funnel host). Without the
+    // host filter, an editorial workshop link (another host, utm_campaign=workshop)
     // in a guide body would wrongly fire the join goal and pollute placements.
     const a = e.target.closest && e.target.closest(`a[href*="${FUNNEL_HOST}"][href*="utm_medium="]`);
     if (!a) return;
     const placement = (a.href.match(/utm_medium=([^&]+)/) || [])[1] || "unknown";
     try { if (typeof window.gtag === "function") window.gtag("event", "join_click", { placement: placement, link_url: a.href }); } catch (err) {}
-    try { if (typeof window.ym === "function") window.ym(109832554, "reachGoal", "join_click", { placement: placement }); } catch (err) {}
+    try { if (METRIKA_ID && typeof window.ym === "function") window.ym(METRIKA_ID, "reachGoal", "join_click", { placement: placement }); } catch (err) {}
   }, true);
 }
 
