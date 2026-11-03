@@ -15,3 +15,4 @@
 | R11 | Analytics on (Yandex Metrika / GA4 or the Loore default) | live |
 | R12 | Phone 390px and desktop screenshots of the live blog shown to the owner | live |
 | R13 | Page speed: research why blog.edgelab.space loads slowly; Loore blog passes Core Web Vitals on mobile (LCP < 2.5 s, CLS < 0.1, INP < 200 ms) measured on the live URL | live |
+| R14 | A reusable article-writing skill for Loore blog (query research -> outline -> draft -> fact check vs llms-full.txt -> lint -> cover -> publish), committed to the repo and used for all 10+ articles | live |
