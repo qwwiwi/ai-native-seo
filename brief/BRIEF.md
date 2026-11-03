@@ -32,3 +32,4 @@ Addendum, warchief voice 72743 (19:20 UTC): «Супер и запускай. И
 Addendum, warchief voice 72772 (19:37 UTC): «Окей, на этом веб ставь, всё. Согласую, короче, всё делай, давай. Я думаю, всё равно идти. Этот блок будет вообще небольшим, он много места не займёт.» – hosting decision: main Timeweb 213.171.6.132, /var/www/blog-loore.
 Addendum, warchief voice 72777 (19:37 UTC): «Главное, чтобы метрика там стояла нужная и Google Analytics стояла. Google TechMind. Ну, да там все, что нужно, чтобы отдельно все было.»
 Addendum, warchief voice 72783 (19:40 UTC): «Нет, отдельных не надо от лоры, я бы имел ввиду отдельных от Aerospace От лора, они от лоровски должны быть, всё, просто там по доменам будет различаться» – counters = Loore's existing Metrika + GA4 (separate from EdgeLab Space), blog told apart by domain.
+Addendum, warchief buttons (19:50 UTC): topic list – «Да, все 12 (Рекомендую)»; author – «Даши Ешиев».

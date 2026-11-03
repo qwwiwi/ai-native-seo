@@ -6,7 +6,7 @@ No approval of this exact list is recorded in the repository (R05). Drafting is 
 release of any article waits until the line below is filled with the owner's approval
 (message ID, date, and the list version it approves).
 
-Approval record: `<<PLACEHOLDER: owner approval of this exact 12-topic list – message ID, date UTC>>`
+Approval record: `Approved by the owner 2026-11-03 19:50 UTC via Telegram buttons: «Да, все 12».`
 
 ## Demand figures
 
