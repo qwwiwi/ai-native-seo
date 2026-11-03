@@ -1,0 +1,78 @@
+{
+  "id": "loore",
+  "brandName": "Loore",
+  "domain": {
+    "site": "https://blog.loore.ai",
+    "apex": "https://loore.ai"
+  },
+  "author": null,
+  "telegram": null,
+  "palette": {
+    "ink": "#1A1512",
+    "accent": "#FF7A1A",
+    "offwhite": "#FFFFFF",
+    "bgLight": "#F4F1EC",
+    "bgDark": "#0E0C0A"
+  },
+  "fonts": {
+    "display": "Geist",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "serif": "Geist",
+    "googleHref": null
+  },
+  "funnel": {
+    "mode": "none",
+    "ctaText": null,
+    "targetUrl": "https://loore.ai/r/blog",
+    "offerText": null,
+    "docs": null,
+    "utm": null
+  },
+  "mcpIdentity": null,
+  "analytics": {
+    "ga4": null,
+    "metrika": null,
+    "indexNowKey": null,
+    "gscProperty": null
+  },
+  "assets": {
+    "og": null,
+    "logo": null,
+    "icons": null
+  },
+  "home": {
+    "eyebrow": "БЛОГ LOORE",
+    "title": "Блог Loore",
+    "description": "Статьи о скиллах Claude, рилс, ИИ для Instagram и переводе видео в текст.",
+    "metaDescription": "Блог Loore: скиллы Claude, рилс, ИИ для Instagram, видео в текст.",
+    "ctaText": null,
+    "ctaHref": null,
+    "heroImage": null
+  },
+  "seo": {
+    "libraryDescription": "Все статьи блога Loore.",
+    "aboutDescription": "О блоге Loore.",
+    "llmsTitle": "{brand} — блог",
+    "llmsIntro": "Статьи блога Loore: скиллы Claude, рилс, ИИ для Instagram, видео в текст."
+  },
+  "categories": [
+    { "id": "skills", "name": "Скиллы Claude", "pillar": "/claude-skills/" },
+    { "id": "reels", "name": "Рилс", "pillar": "/reels/" },
+    { "id": "instagram", "name": "ИИ для Instagram", "pillar": "/instagram-ai/" },
+    { "id": "video", "name": "Видео в текст", "pillar": "/video-to-text/" }
+  ],
+  "content": {
+    "titleStopWords": [],
+    "hubPages": []
+  },
+  "deploy": {
+    "host": "213.171.6.132",
+    "webroot": "/var/www/blog-loore"
+  },
+  "features": {
+    "runtime": false,
+    "seoContent": false,
+    "picture": false
+  }
+}
