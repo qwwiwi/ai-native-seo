@@ -22,8 +22,19 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import brand from "./brand.mjs";
+import { resolveBrandPaths } from "./brand-paths.mjs";
 
 const SITE = join(dirname(fileURLToPath(import.meta.url)), "..", "site");
+// Where the brand's shell pages (<pillar>.html) live: site/ for the default brand,
+// the composed serve root (.build/<id>/serve/) for another brand. A legacy profile
+// (no id, never built) reads site/.
+let shellDirCache;
+export function shellDir() {
+  if (shellDirCache === undefined) {
+    try { shellDirCache = resolveBrandPaths().serveDir; } catch { shellDirCache = SITE; }
+  }
+  return shellDirCache;
+}
 
 // Taxonomy of the demo content in content-guides/ (the editorial layer).
 export const DEMO_CATEGORIES = [
@@ -84,5 +95,5 @@ export function categoryPages(guides) {
   return CATEGORIES.filter((c) => c.pillar).map((c) => {
     const items = guides.filter((g) => g.cat === c.id);
     return { ...c, file: pillarFile(c.pillar), count: items.length, description: categoryDescription(c, items) };
-  }).filter((c) => c.count > 0 && existsSync(join(SITE, c.file)));
+  }).filter((c) => c.count > 0 && existsSync(join(shellDir(), c.file)));
 }

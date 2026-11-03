@@ -1,4 +1,5 @@
-// build-seo.mjs — the SEO / GEO / agent-readiness layer for blog.edgelab.space.
+// build-seo.mjs — the SEO / GEO / agent-readiness layer of the selected brand's blog
+// (paths: scripts/brand-paths.mjs — the default brand reads site/ and writes build/).
 //
 // 100% ADDITIVE and design-safe. It does two kinds of work:
 //   1. Post-process each emitted build/*.html + build/guides/*.html: inject into
@@ -16,40 +17,54 @@
 // but only meaningful AFTER prerender has populated build/).
 
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { promises as fs, existsSync, readFileSync, realpathSync } from "node:fs";
 import crypto from "node:crypto";
 import brand from "./brand.mjs";
 import { categoryPages } from "./categories.mjs";
 import { brandScriptTag, brandTokensStyle, brandFontsHref, BRAND_SCRIPT_ID } from "./brand-client.mjs";
+import { resolveBrandPaths, createBuildContext, brandIcons } from "./brand-paths.mjs";
+import { DEFAULT_SEO } from "./brand-compat.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const SITE = join(ROOT, "site");
-const BUILD = join(ROOT, "build");
-const SRC = join(ROOT, "content-guides");
+// Brand paths (scripts/brand-paths.mjs): the default brand reads site/ and writes
+// build/; another brand reads its work dir and writes its staging output dir.
+const PATHS = resolveBrandPaths();
+const DATA_DIR = PATHS.workDir; // guides-data.js
+const ASSETS = PATHS.assetsDir; // covers/
+const BUILD = PATHS.buildDir;
+const SRC = PATHS.contentDir;
 
 // ---- brand-driven identity constants ---------------------------------------
 // All site identity (domain, author, telegram, MCP, analytics, assets) is read
-// from brand.config.json via ./brand.mjs, so the whole SEO/GEO/agent layer can be
-// white-labeled by swapping that config — no code change. EdgeLab Space is the
-// default brand (see brand.config.json); every value below equals the previous
-// hardcoded literal for the default config.
+// from the brand config via ./brand.mjs, so the whole SEO/GEO/agent layer can be
+// white-labeled by swapping that config — no code change. For the default brand
+// every value below equals the previous hardcoded literal. A non-default brand
+// has no fallbacks: a null section (author, telegram, mcpIdentity, og/logo,
+// analytics ids) omits what depends on it.
 const BASE = brand.domain.site;
 const SITE_NAME = brand.brandName;
-const AUTHOR_NAME = brand.author.name;
-const AUTHOR_URL = brand.author.url;
+const AUTHOR_NAME = (brand.author && brand.author.name) || null;
+const AUTHOR_URL = (brand.author && brand.author.url) || null;
 const PUBLISHER_NAME = brand.brandName;
 const PUBLISHER_URL = brand.domain.apex;
-const TG = brand.telegram.url; // brand telegram (Organization sameAs)
-const OG_IMAGE = `${BASE}/${brand.assets.og}`;
+const TG = (brand.telegram && brand.telegram.url) || null; // brand telegram (Organization sameAs)
+const OG_IMAGE = brand.assets && brand.assets.og ? `${BASE}/${brand.assets.og}` : null;
 const LANG = "ru";
+const ICONS = brandIcons(PATHS);
+// SEO copy: the default brand's from brand-compat.mjs, another brand's own `seo`.
+const SEO_COPY = PATHS.isDefault ? DEFAULT_SEO : brand.seo;
+const fillBrand = (t) => String(t).replace(/\{brand\}/g, SITE_NAME);
+// Frozen hook (PLAN.md §1): C's buildSeoContent(context) may supply robots/llms/
+// page-meta overrides; null (legacy) keeps everything below. Set in main().
+let SEO_HOOK = null;
 
 // IndexNow — instant URL submission to Yandex + Bing (one shared key). The key
 // file MUST resolve at <site>/<KEY>.txt with the key as its body; build-seo emits
 // it as a sidecar so it always ships with the site. scripts/indexnow-submit.mjs
-// reads it from there and pings the engines on deploy.
-const INDEXNOW_KEY = brand.analytics.indexNowKey;
+// reads it from there and pings the engines on deploy. null → no key file.
+const INDEXNOW_KEY = (brand.analytics && brand.analytics.indexNowKey) || null;
 
 // Static (non-guide) routes: built file → canonical clean URL + view kind.
 // guide.html (standalone demo) and mobile.html (mobile variant of home) are
@@ -68,7 +83,7 @@ let CAT_PAGES = [];
 
 // ---- helpers ---------------------------------------------------------------
 function loadGuides() {
-  return fs.readFile(join(SITE, "guides-data.js"), "utf8").then((js) => {
+  return fs.readFile(join(DATA_DIR, "guides-data.js"), "utf8").then((js) => {
     const w = {};
     // eslint-disable-next-line no-new-func
     new Function("window", js)(w);
@@ -137,9 +152,20 @@ function organizationNode() {
     "@id": `${BASE}/#organization`,
     name: PUBLISHER_NAME,
     url: PUBLISHER_URL,
-    logo: `${BASE}/${brand.assets.logo}`,
-    sameAs: [TG, PUBLISHER_URL],
+    logo: brand.assets && brand.assets.logo ? `${BASE}/${brand.assets.logo}` : undefined,
+    sameAs: [TG, PUBLISHER_URL].filter(Boolean),
   };
+}
+
+// Cover WebP of a guide (JSON-LD image / og:image), or null. The default brand:
+// <site>/covers/<slug>.webp; another brand also covers/<slug>/cover.webp.
+function coverWebp(slug) {
+  const names = PATHS.isDefault ? [slug] : [slug, `${slug}/cover`];
+  for (const n of names) {
+    const p = join(ASSETS, "covers", `${n}.webp`);
+    if (existsSync(p)) return { rel: `covers/${n}.webp`, file: p };
+  }
+  return null;
 }
 
 function websiteNode() {
@@ -236,9 +262,12 @@ function faqFromBody(mdxBody) {
 // author is the fallback. The brand author URL belongs to the brand author only —
 // another author has no known page, so the URL is omitted rather than misattributed.
 // The visible byline (site/gf-app.jsx Byline) names the same person.
+// No frontmatter author and no brand author (a non-default brand whose author
+// facts are not supplied yet) → the publishing organization, never a made-up person.
 function articleAuthor(guide) {
   const name = guide.author || AUTHOR_NAME;
-  return name === AUTHOR_NAME ? { "@type": "Person", name, url: AUTHOR_URL } : { "@type": "Person", name };
+  if (!name) return { "@id": `${BASE}/#organization` };
+  return name === AUTHOR_NAME && AUTHOR_URL ? { "@type": "Person", name, url: AUTHOR_URL } : { "@type": "Person", name };
 }
 
 function techArticleGraph(guide, mdxBody) {
@@ -262,9 +291,7 @@ function techArticleGraph(guide, mdxBody) {
       mainEntityOfPage: { "@type": "WebPage", "@id": url },
       url,
       // only emit image if the cover actually exists (no dead structured-data ref)
-      image: existsSync(join(SITE, "covers", `${guide.slug}.webp`))
-        ? `${BASE}/covers/${guide.slug}.webp`
-        : undefined,
+      image: coverWebp(guide.slug) ? `${BASE}/${coverWebp(guide.slug).rel}` : undefined,
       articleSection: guide.catName,
       // Full visible text → enables «Дочитывания»/«Доскроллы» in Content Analytics.
       articleBody: mdToPlainText(mdxBody),
@@ -445,10 +472,10 @@ const ANALYTICS = analyticsBlock();
 // guide shares to social/AI previews with ITS cover, not one generic image.
 function coverOg(slug) {
   if (!slug) return null;
-  const p = join(SITE, "covers", `${slug}.webp`);
-  if (!existsSync(p)) return null;
-  const v = crypto.createHash("sha256").update(readFileSync(p)).digest("hex").slice(0, 10);
-  return `${BASE}/covers/${slug}.webp?v=${v}`;
+  const c = coverWebp(slug);
+  if (!c) return null;
+  const v = crypto.createHash("sha256").update(readFileSync(c.file)).digest("hex").slice(0, 10);
+  return `${BASE}/${c.rel}?v=${v}`;
 }
 
 // ---- <head> injection ------------------------------------------------------
@@ -456,11 +483,11 @@ function coverOg(slug) {
 function headBlock({ title, description, canonical, ogType, jsonLd, mdTwin, scrollScript,
                      ogImage, ogImageAlt, published, modified }) {
   const lines = [];
-  const img = ogImage || OG_IMAGE; // per-page cover → fallback og-default
-  // favicon (EdgeLab Space mark — same icons as edgelab.space / space.edgelab.su)
-  lines.push(`<link rel="icon" href="/favicon.ico" sizes="any">`);
-  lines.push(`<link rel="icon" type="image/png" href="/icon-32.png" sizes="32x32">`);
-  lines.push(`<link rel="apple-touch-icon" href="/apple-touch-icon.png">`);
+  const img = ogImage || OG_IMAGE; // per-page cover → fallback og-default (null → no og:image)
+  // favicon / touch icons of the brand (brand-paths brandIcons; null → none)
+  if (ICONS && ICONS.ico) lines.push(`<link rel="icon" href="${attr(ICONS.ico)}" sizes="any">`);
+  if (ICONS && ICONS.png32) lines.push(`<link rel="icon" type="image/png" href="${attr(ICONS.png32)}" sizes="32x32">`);
+  if (ICONS && ICONS.apple) lines.push(`<link rel="apple-touch-icon" href="${attr(ICONS.apple)}">`);
   lines.push(`<link rel="canonical" href="${attr(canonical)}">`);
   // Open Graph
   lines.push(`<meta property="og:type" content="${ogType}">`);
@@ -468,10 +495,12 @@ function headBlock({ title, description, canonical, ogType, jsonLd, mdTwin, scro
   lines.push(`<meta property="og:title" content="${attr(title)}">`);
   if (description) lines.push(`<meta property="og:description" content="${attr(description)}">`);
   lines.push(`<meta property="og:url" content="${attr(canonical)}">`);
-  lines.push(`<meta property="og:image" content="${attr(img)}">`);
-  lines.push(`<meta property="og:image:width" content="1600">`);
-  lines.push(`<meta property="og:image:height" content="900">`);
-  lines.push(`<meta property="og:image:alt" content="${attr(ogImageAlt || title)}">`);
+  if (img) {
+    lines.push(`<meta property="og:image" content="${attr(img)}">`);
+    lines.push(`<meta property="og:image:width" content="1600">`);
+    lines.push(`<meta property="og:image:height" content="900">`);
+    lines.push(`<meta property="og:image:alt" content="${attr(ogImageAlt || title)}">`);
+  }
   lines.push(`<meta property="og:locale" content="ru_RU">`);
   // article-specific freshness signals (guides/articles only)
   if (ogType === "article") {
@@ -482,7 +511,7 @@ function headBlock({ title, description, canonical, ogType, jsonLd, mdTwin, scro
   lines.push(`<meta name="twitter:card" content="summary_large_image">`);
   lines.push(`<meta name="twitter:title" content="${attr(title)}">`);
   if (description) lines.push(`<meta name="twitter:description" content="${attr(description)}">`);
-  lines.push(`<meta name="twitter:image" content="${attr(img)}">`);
+  if (img) lines.push(`<meta name="twitter:image" content="${attr(img)}">`);
   // sitemap + markdown twin
   lines.push(`<link rel="sitemap" type="application/xml" href="/sitemap.xml">`);
   if (mdTwin) {
@@ -632,8 +661,7 @@ function notFoundHtml() {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Страница не найдена — ${attr(brand.brandName)}</title>
 <meta name="robots" content="noindex">
-<link rel="icon" href="/favicon.ico">
-<link rel="preconnect" href="https://fonts.googleapis.com">
+${ICONS && ICONS.ico ? `<link rel="icon" href="${attr(ICONS.ico)}">\n` : ""}<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link href="${attr(fontsHref)}" rel="stylesheet">
 <style>
@@ -745,9 +773,9 @@ function sitemapXml(guides) {
 // Built from the same frontmatter-stripped MDX bodies as the per-guide .md twins.
 function llmsFullTxt(guides) {
   const parts = [
-    "# EdgeLab Space — полный текст гайдов (llms-full.txt)",
+    `# ${SITE_NAME} — полный текст гайдов (llms-full.txt)`,
     "",
-    "> Полное содержимое всех гайдов blog.edgelab.space в одном файле, для загрузки " +
+    `> Полное содержимое всех гайдов ${new URL(BASE).host} в одном файле, для загрузки ` +
       "корпуса в контекст LLM/агента одним запросом. Источник — markdown-двойники гайдов.",
     "",
   ];
@@ -760,14 +788,10 @@ function llmsFullTxt(guides) {
 
 function llmsTxt(guides) {
   const lines = [];
-  lines.push(`# ${SITE_NAME} — портал об AI-агентах`);
+  const mcp = brand.mcpIdentity || null; // null → no agent-access section / sidecars
+  lines.push(`# ${fillBrand(SEO_COPY.llmsTitle)}`);
   lines.push("");
-  lines.push(
-    "> Практические гайды на русском по Claude Code, MCP-серверам, AI-агентам, " +
-      "автоматизации видео и личным базам знаний. Каждый гайд протестирован, с " +
-      "датой обновления, готовыми промптами и пошаговой настройкой. " +
-      "EdgeLab Space — закрытое AI-комьюнити: библиотека, живой чат, эфиры по средам.",
-  );
+  lines.push(`> ${fillBrand(SEO_COPY.llmsIntro)}`);
   lines.push("");
   lines.push("## Гайды");
   lines.push("");
@@ -776,26 +800,29 @@ function llmsTxt(guides) {
     lines.push(`- [${g.title}](${guideUrl(g.slug)}): ${desc}`);
   }
   lines.push("");
-  lines.push("## Доступ для агентов");
-  lines.push("");
-  lines.push(
-    `- [MCP-сервер](${brand.mcpIdentity.serverUrl}): программный доступ к библиотеке ` +
-      "EdgeLab Space через Model Context Protocol (по токену) — поиск материалов, чтение гайдов, вопросы хаба. " +
-      "Это поддерживаемый агент-интерфейс.",
-  );
-  lines.push(
-    `- [Документация](${brand.mcpIdentity.docsUrl}): описание MCP-тулов, ` +
-      "схемы API, примеры запросов.",
-  );
-  lines.push("");
+  if (mcp) {
+    const mcpText = SEO_COPY.llmsMcp
+      ? fillBrand(SEO_COPY.llmsMcp)
+      : `программный доступ к ${SITE_NAME} через Model Context Protocol.`;
+    lines.push("## Доступ для агентов");
+    lines.push("");
+    lines.push(`- [MCP-сервер](${mcp.serverUrl}): ${mcpText}`);
+    lines.push(
+      `- [Документация](${mcp.docsUrl}): описание MCP-тулов, ` +
+        "схемы API, примеры запросов.",
+    );
+    lines.push("");
+  }
   lines.push("## Файлы обнаружения");
   lines.push("");
   lines.push(`- [robots.txt](${BASE}/robots.txt): правила для AI-краулеров + Content-Signal.`);
   lines.push(`- [sitemap.xml](${BASE}/sitemap.xml): карта всех страниц.`);
   lines.push(`- [search-index.json](${BASE}/search-index.json): машиночитаемый индекс поиска по гайдам.`);
-  lines.push(`- [MCP server-card](${BASE}/.well-known/mcp/server-card.json): карточка MCP-сервера.`);
-  lines.push(`- [API-каталог](${BASE}/.well-known/api-catalog): linkset публичного API.`);
-  lines.push(`- [Agent skills](${BASE}/.well-known/agent-skills/index.json): индекс агентских скиллов.`);
+  if (mcp) {
+    lines.push(`- [MCP server-card](${BASE}/.well-known/mcp/server-card.json): карточка MCP-сервера.`);
+    lines.push(`- [API-каталог](${BASE}/.well-known/api-catalog): linkset публичного API.`);
+    lines.push(`- [Agent skills](${BASE}/.well-known/agent-skills/index.json): индекс агентских скиллов.`);
+  }
   lines.push("");
   return lines.join("\n");
 }
@@ -829,8 +856,9 @@ function serverCardJson() {
         name: brand.mcpIdentity.name,
         title: brand.mcpIdentity.title,
         version: "1.0.0",
-        description:
-          "Программный доступ к библиотеке EdgeLab Space: поиск материалов, чтение гайдов, вопросы хаба.",
+        description: SEO_COPY.serverCardDescription
+          ? fillBrand(SEO_COPY.serverCardDescription)
+          : `Программный доступ к ${SITE_NAME}.`,
         websiteUrl: PUBLISHER_URL,
       },
       transport: {
@@ -898,31 +926,35 @@ function agentSkillsJson() {
 // desktop and mobile passes so a mobile twin gets the SAME title/description as
 // its desktop page.
 function pageMeta(route) {
+  // Frozen hook: C's buildSeoContent may return pageMeta(route) → {metaTitle,…}.
+  const hooked = SEO_HOOK && typeof SEO_HOOK.pageMeta === "function" ? SEO_HOOK.pageMeta(route) : null;
+  if (hooked) return hooked;
   if (route.kind === "home") {
+    // the default brand's niche title; another brand titles its home itself
+    const homeTitle = PATHS.isDefault ? `${SITE_NAME} — портал об AI-агентах` : brand.home.title;
     return {
-      metaTitle: `${SITE_NAME} — портал об AI-агентах`,
-      title: `${SITE_NAME} — портал об AI-агентах`,
+      metaTitle: homeTitle,
+      title: homeTitle,
       // White-label fix-loop 2: home.metaDescription (niche block) overrides the
       // home meta; deliberately a SEPARATE field from home.description (the hero
       // text) so adding the niche block does not silently change the default SEO.
-      // The default template is byte-identical to the previous literal.
+      // The default template (brand-compat DEFAULT_SEO) is the previous literal.
       description:
-        (brand.home && brand.home.metaDescription) ||
-        `Практические гайды по Claude Code, MCP, AI-агентам и автоматизации. Закрытое AI-комьюнити ${SITE_NAME}.`,
+        (brand.home && brand.home.metaDescription) || fillBrand(DEFAULT_SEO.homeDescription),
     };
   }
   if (route.kind === "library") {
     return {
       metaTitle: `Все гайды — ${SITE_NAME}`,
       title: `Все гайды — ${SITE_NAME}`,
-      description: "Каталог практических гайдов по AI-агентам, Claude Code и автоматизации.",
+      description: fillBrand(SEO_COPY.libraryDescription),
     };
   }
   if (route.kind === "about") {
     return {
       metaTitle: `О проекте — ${SITE_NAME}`,
       title: `О проекте — ${SITE_NAME}`,
-      description: `${SITE_NAME} — закрытое AI-комьюнити: библиотека, живой чат, эфиры по средам.`,
+      description: fillBrand(SEO_COPY.aboutDescription),
     };
   }
   // category: the listing intro (brand `categories[].description`, else built from
@@ -999,6 +1031,8 @@ async function injectMobile(guides) {
 
 // ---- main ------------------------------------------------------------------
 async function main() {
+  const { hooks, ...context } = await createBuildContext({ names: ["buildSeoContent"] });
+  SEO_HOOK = (await hooks.buildSeoContent({ ...context, hooks })) || null;
   const guides = await loadGuides();
   CAT_PAGES = categoryPages(guides);
   for (const c of CAT_PAGES) {
@@ -1071,15 +1105,16 @@ async function main() {
     if (await injectBrandOnly(join(BUILD, f))) offCanonical.push(f);
   }
 
-  // 4) Sidecar files.
-  await fs.writeFile(join(BUILD, "robots.txt"), robotsTxt(), "utf8");
+  // 4) Sidecar files. The frozen buildSeoContent hook may supply robots/llms texts.
+  const hookText = (k, fallback) => (SEO_HOOK && typeof SEO_HOOK[k] === "function" ? SEO_HOOK[k](guides) : fallback());
+  await fs.writeFile(join(BUILD, "robots.txt"), hookText("robotsTxt", robotsTxt), "utf8");
   const sitemap = sitemapXml(guides);
   await fs.writeFile(join(BUILD, "sitemap.xml"), sitemap, "utf8");
-  await fs.writeFile(join(BUILD, "llms.txt"), llmsTxt(guides), "utf8");
-  await fs.writeFile(join(BUILD, "llms-full.txt"), llmsFullTxt(guides), "utf8");
+  await fs.writeFile(join(BUILD, "llms.txt"), hookText("llmsTxt", () => llmsTxt(guides)), "utf8");
+  await fs.writeFile(join(BUILD, "llms-full.txt"), hookText("llmsFullTxt", () => llmsFullTxt(guides)), "utf8");
   await fs.writeFile(join(BUILD, "search-index.json"), searchIndexJson(guides), "utf8");
-  // IndexNow key file (served at /<KEY>.txt, body = the key).
-  await fs.writeFile(join(BUILD, `${INDEXNOW_KEY}.txt`), INDEXNOW_KEY, "utf8");
+  // IndexNow key file (served at /<KEY>.txt, body = the key). No key → no file.
+  if (INDEXNOW_KEY) await fs.writeFile(join(BUILD, `${INDEXNOW_KEY}.txt`), INDEXNOW_KEY, "utf8");
 
   // /guides/ (bare directory) → redirect to the catalog /library/, so truncating a
   // /guides/<slug>/ URL to its parent doesn't hit a 404. NB: Caddy normalizes `/guides/`
@@ -1098,19 +1133,22 @@ async function main() {
   // (prominent button + gentle auto-redirect) instead of a bare "Not Found".
   await fs.writeFile(join(BUILD, "404.html"), notFoundHtml(), "utf8");
 
-  await fs.mkdir(join(BUILD, ".well-known", "mcp"), { recursive: true });
-  await fs.writeFile(
-    join(BUILD, ".well-known", "mcp", "server-card.json"),
-    serverCardJson(),
-    "utf8",
-  );
-  await fs.writeFile(join(BUILD, ".well-known", "api-catalog"), apiCatalogJson(), "utf8");
-  await fs.mkdir(join(BUILD, ".well-known", "agent-skills"), { recursive: true });
-  await fs.writeFile(
-    join(BUILD, ".well-known", "agent-skills", "index.json"),
-    agentSkillsJson(),
-    "utf8",
-  );
+  // Agent sidecars only for a brand with an MCP identity (mcpIdentity: null → none).
+  if (brand.mcpIdentity) {
+    await fs.mkdir(join(BUILD, ".well-known", "mcp"), { recursive: true });
+    await fs.writeFile(
+      join(BUILD, ".well-known", "mcp", "server-card.json"),
+      serverCardJson(),
+      "utf8",
+    );
+    await fs.writeFile(join(BUILD, ".well-known", "api-catalog"), apiCatalogJson(), "utf8");
+    await fs.mkdir(join(BUILD, ".well-known", "agent-skills"), { recursive: true });
+    await fs.writeFile(
+      join(BUILD, ".well-known", "agent-skills", "index.json"),
+      agentSkillsJson(),
+      "utf8",
+    );
+  }
 
   // hash one twin just to surface in logs (sanity that twins carry real text).
   const sampleTwin = await fs.readFile(
@@ -1123,9 +1161,9 @@ async function main() {
   console.log(`  ${PAGE_ROUTES.length} static-page <head> blocks injected`);
   console.log(`  ${mobilePageRoutes().length} +${guides.length} mobile <head> blocks injected (canonical → desktop twin)`);
   console.log(`  ${offCanonical.length} off-canonical pages brand-injected (${offCanonical.join(", ")})`);
-  console.log(`  ${guides.length} markdown twins → build/guides/<slug>.md`);
+  console.log(`  ${guides.length} markdown twins → ${relative(ROOT, BUILD)}/guides/<slug>.md`);
   console.log(`  robots.txt, sitemap.xml (${(sitemap.match(/<url>/g) || []).length} urls), llms.txt, search-index.json (${guides.length} guides)`);
-  console.log(`  .well-known/{mcp/server-card.json, api-catalog, agent-skills/index.json}`);
+  if (brand.mcpIdentity) console.log(`  .well-known/{mcp/server-card.json, api-catalog, agent-skills/index.json}`);
   console.log(`  sample twin ${guides[0].slug}.md: ${sampleTwin.length} bytes, sha256 ${sha256(sampleTwin).slice(0, 12)}…`);
 }
 
