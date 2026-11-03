@@ -1,2 +1,0 @@
-     23 font-family: var(--font-mono)
-      2 font-family: var(--font-sans)
