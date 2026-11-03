@@ -93,7 +93,7 @@ Keep the path exactly `/r/blog`, without added slash or shortener. Non-article r
 
 Exact-href test for slug `idei-dlya-rils`, placement `footer`: expect `https://loore.ai/r/blog?utm_source=blog&utm_medium=article&utm_campaign=idei-dlya-rils&utm_content=footer` in built HTML, after load and at click time, including a visit with conflicting inbound UTMs and unavailable storage. Test all CTA placements and mobile equivalents; functional controls and editorial links must not be rewritten.
 
-CTA text: **«Промокод BLOG — скидка на месячные тарифы»**. The supplied production check confirms monthly prices 1,790 / 3,490 / 7,990 ₽ and annual exclusion; do not promise an annual discount or infer a uniform percentage from unrelated fields. Avoid embedding prices unless revalidated when publishing. The `/r/blog` redirect preserves query per PROMO-BLOG-facts; test the live redirect again after release. Trial/“no card”, tool counts and product capabilities still require fresh claim-level verification.
+CTA text: **«Промокод BLOG – скидка на месячные тарифы» (short dash per owner TOV)**. The supplied production check confirms monthly prices 1,790 / 3,490 / 7,990 ₽ and annual exclusion; do not promise an annual discount or infer a uniform percentage from unrelated fields. Avoid embedding prices unless revalidated when publishing. The `/r/blog` redirect preserves query per PROMO-BLOG-facts; test the live redirect again after release. Trial/“no card”, tool counts and product capabilities still require fresh claim-level verification.
 
 ## 5. Covers and image pipeline — C / R06 / R15
 

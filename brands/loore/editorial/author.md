@@ -23,7 +23,7 @@ another brand and are not Loore facts.
 
 | Fact | Placeholder |
 |---|---|
-| Public author name for `author:` (person or «Команда Loore») | `<<PLACEHOLDER: Loore public author name for articles>>` |
+| Public author name for `author:` | **Даши Ешиев** – owner decision 2026-11-03 19:50 UTC (Telegram buttons). Photo and Loore bio pending from the owner; never use the EdgeLab avatar path. |
 | Author page / profile URL | `<<PLACEHOLDER: Loore author public URL>>` |
 | Short author bio (what they actually do with Loore) | `<<PLACEHOLDER: Loore author bio, first-hand experience>>` |
 | Whether the author personally uses Loore for reels (allows first-person CTA) | `<<PLACEHOLDER: confirmed author experience – yes/no and how>>` |

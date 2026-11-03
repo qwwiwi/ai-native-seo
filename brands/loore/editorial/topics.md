@@ -1,10 +1,6 @@
 # Loore blog – topic list (12 candidates)
 
-**Status: awaiting owner approval of the list.** This is the candidate list from
-`brief/PLAN.md` §9, built from Kaelthas's Wordstat plan (`brief/KAELTHAS-content-plan.md`).
-No approval of this exact list is recorded in the repository (R05). Drafting is allowed;
-release of any article waits until the line below is filled with the owner's approval
-(message ID, date, and the list version it approves).
+**Status: approved by the owner** 2026-11-03 19:50 UTC (Telegram buttons, answer «Да, все 12»), list version = this file at commit fc2c9d2. Source: `brief/PLAN.md` §9, built from Kaelthas's Wordstat plan (`brief/KAELTHAS-content-plan.md`).
 
 Approval record: `Approved by the owner 2026-11-03 19:50 UTC via Telegram buttons: «Да, все 12».`
 

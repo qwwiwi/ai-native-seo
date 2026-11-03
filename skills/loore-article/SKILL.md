@@ -141,8 +141,9 @@ https://loore.ai/r/blog?utm_source=blog&utm_medium=article&utm_campaign=<slug>&u
   `article-end` (required, in the «Где здесь Loore» section). Header/footer/UI CTAs belong to the
   UI (slice B1) – do not add them in MDX.
 - Wording: the CTA must name the code and the scope exactly as «Промокод BLOG – скидка на
-  месячные тарифы». Do not promise an annual discount, a percentage, or a price unless re-checked
-  today (step 4) and recorded.
+  месячные тарифы». Never promise an annual BLOG discount: BLOG applies to monthly tariffs only
+  (brief/PROMO-BLOG-facts.md); this changes only if those promo terms are updated in the repo. Do not
+  promise a percentage or a price unless re-checked today (step 4) and recorded.
 - The CTA is prose (the engine renders markdown links; `:::cta` is deprecated and FAILs lint in
   articles). It follows from the content: the reader has just seen the manual way, Loore is the
   shorter way to the same outcome.
@@ -258,7 +259,7 @@ All must be true; record the evidence in `sources/<slug>.md`:
 - [ ] content-lint passes with zero FAIL and none of the launch WARNs above (before slice A
       wires the Loore slug map, the only tolerated FAIL is «slug не добавлен в SLUG_CAT», and
       the article is not releasable until it is gone).
-- [ ] No EdgeLab literal in the three owned paths (`grep -rniE 'edgelab|ешиев|go\.edgelab'`).
+- [ ] No EdgeLab literal in the three owned paths (`grep -rniE 'edgelab|go\.edgelab|author-avatar'`).
 
 Release (build, deploy, IndexNow) is not part of this skill: the responsible operator ships
 after review (PLAN §7, §9).
