@@ -7,3 +7,6 @@ site/covers/*.html
 
 # public repo: build output is generated, not tracked
 build/
+# non-default brand outputs (build-<id>/) and their work dirs (.build/<id>/)
+build-*/
+.build/
