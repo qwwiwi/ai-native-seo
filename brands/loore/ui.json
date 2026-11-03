@@ -1,0 +1,87 @@
+{
+  "byline": {
+    "avatar": "/identity/author-placeholder.svg",
+    "ariaLabel": "Даши Ешиев"
+  },
+  "drawerGroup": "",
+  "headerLive": "",
+  "bannerStrip": {
+    "eyebrow": "БЛОГ LOORE"
+  },
+  "bannerCard": {
+    "eyebrow": "LOORE",
+    "offer": "От идей для рилс к сценарию",
+    "button": "Промокод BLOG – скидка на месячные тарифы"
+  },
+  "bannerDark": {
+    "eyebrow": "LOORE",
+    "lead": "Идеи для рилс, ",
+    "accent": "видео в текст",
+    "tail": "."
+  },
+  "sideMini": {
+    "title": "",
+    "items": []
+  },
+  "cta": {
+    "title": "От идеи к сценарию",
+    "sub": "Разберите рилсы с Claude и Loore.",
+    "bullets": [
+      "Идеи для рилс",
+      "Разбор кадров и текста"
+    ],
+    "button": "Промокод BLOG – скидка на месячные тарифы",
+    "fine": "",
+    "social": ""
+  },
+  "footer": {
+    "about": "Блог Loore: скиллы Claude, идеи для рилс, ИИ для Instagram и видео в текст.",
+    "streams": "",
+    "streamsShort": "",
+    "community": "",
+    "channel": ""
+  },
+  "mobile": {
+    "banner": "От идей для рилс к сценарию",
+    "bannerHome": "Блог Loore",
+    "bannerCta": "Промокод BLOG – скидка на месячные тарифы",
+    "ctaTitle": "От идеи к сценарию",
+    "ctaSub": "Разберите рилсы с Claude и Loore.",
+    "ctaTitleShort": "От идеи к сценарию",
+    "ctaSubShort": "Разберите рилсы с Claude и Loore.",
+    "ctaBullets": [
+      "Идеи для рилс",
+      "Разбор кадров и текста"
+    ],
+    "ctaFine": ""
+  },
+  "about": {
+    "title": "Loore – от идей для рилс к сценарию",
+    "description": "Разбор рилс с кадрами и текстом помогает подготовить сценарий с Claude.",
+    "channelLink": "",
+    "heroImage": null,
+    "hello": "Автор – Даши Ешиев",
+    "introLead": "Здесь собраны материалы о скиллах Claude, рилс, ИИ для Instagram и переводе видео в текст.",
+    "introLink": "",
+    "introTail": "",
+    "paragraphs": [
+      "Loore подключается к Claude и ChatGPT через MCP."
+    ],
+    "featuresTitle": "От задачи к результату",
+    "features": [
+      [
+        "Идеи для рилс",
+        "Разбирайте кадры и текст рилс."
+      ],
+      [
+        "Видео в текст",
+        "Используйте текст видео YouTube для работы с Claude."
+      ]
+    ],
+    "card": {
+      "eyebrow": "LOORE",
+      "title": "Перейти в Loore",
+      "text": "Промокод BLOG – скидка на месячные тарифы"
+    }
+  }
+}
