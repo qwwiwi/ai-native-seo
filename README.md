@@ -115,6 +115,8 @@ URL из sitemap. Раздача — любой статический серв�
   движок кладёт полный текст статьи в JSON-LD `articleBody` — это её требование).
 - **GA4** — встроенный scroll-depth и `content_group` (article vs guide).
 - **Яндекс.Вебмастер / Google Search Console** — запросы и покрытие индекса.
+- **Видимость в ответах нейросетей** — по каким запросам вас цитируют AI-ответы, а по каким нет
+  (Bing, Яндекс, Google): [`docs/AI-VISIBILITY.md`](docs/AI-VISIBILITY.md).
 - **IndexNow** — свежие URL попадают в Яндекс/Bing в течение часов, не недель.
 
 ## Структура репозитория
@@ -132,7 +134,7 @@ URL из sitemap. Раздача — любой статический серв�
 | `scripts/deploy.sh` | деплой + бэкап + IndexNow |
 | `scripts/content-lint.mjs` | линт контента перед публикацией |
 | `tools/covers/` | генератор обложек |
-| `docs/` | WHITE-LABEL, SEO, DEPLOY, CONTENT, ANALYTICS, DESIGN-SYSTEM |
+| `docs/` | WHITE-LABEL, SEO, AI-VISIBILITY, DEPLOY, CONTENT, ANALYTICS, DESIGN-SYSTEM |
 
 ## Статус и лицензия
 
