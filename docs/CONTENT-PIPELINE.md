@@ -22,7 +22,8 @@ article fails the build).
   поисковые запросы из Яндекс.Вебмастера (позиции 4-15 = «почти топ», скилл
   `yandex-webmaster`) → артефакт target-query list в M1 fact-sheet. Title/H1 и FAQ
   строятся под эти РЕАЛЬНЫЕ запросы, не выдуманные** (см. CONTENT.md «Формула тайтла»
-  / «Откуда брать запросы»).
+  / «Откуда брать запросы»). Дополнительный источник целевых запросов — пробелы видимости
+  в AI-ответах из Bing/Яндекса (метод — в [`AI-VISIBILITY.md`](AI-VISIBILITY.md); правило выше не меняется).
 - **M1 · Sources (weighted)** — gather facts per the source model below; produce a
   sourced fact-sheet (claim → citation).
 - **M2 · Draft** — гайд: exact verified commands/configs + code. статья: read the

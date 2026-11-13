@@ -2,6 +2,7 @@
 
 Карта измерения поисковой видимости и сбора данных. Дополняет [`ANALYTICS.md`](ANALYTICS.md)
 (дочитываемость/read-through) — здесь про поисковую производительность, подбор запросов и инструменты.
+Про видимость в ответах нейросетей (где вас цитируют, где нет) — [`AI-VISIBILITY.md`](AI-VISIBILITY.md).
 Всё тянется **agent-native** (API/скиллы, не UI) агентом-маркетологом (sa-kaelthas).
 
 ## Воронка измерения
@@ -26,6 +27,9 @@ IG / контент → клик (Sink) → визит (Метрика / GA4) �
 - Данные: запросы / позиции / CTR в Google, индексация, sitemap.
 - Программный доступ — через тот же SA-ключ; **Search Console API включён** в проекте `sylvanas-487716`. Скилл `google-search-console` (`sites` / `query` / `sitemaps` / `inspect`) — собран и работает. Sitemap засабмичен (0 ошибок); pillar `claude-code-skills` уже «Submitted and indexed» в Google.
 - Приоритет: вторичный для РФ (главный — Яндекс), нужен под Google + цитирование в AI Overviews.
+
+### Bing Webmaster Tools — не подключён, инструкция в [`AI-VISIBILITY.md`](AI-VISIBILITY.md)
+- Нужен для отчётов AI Performance / Topics Portfolio (запросы, где цитируют других, а нас нет). Сейчас до Bing доходят только IndexNow-пинги.
 
 ## Поведение на сайте
 
