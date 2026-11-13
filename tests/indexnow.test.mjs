@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, mkdirSync, cpSync, chmodSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, cpSync, chmodSync, readFileSync, utimesSync, readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -136,6 +136,46 @@ test("indexnow: a 429 without Retry-After still stops and is distinguishable", a
   assert.match(r.err, /no Retry-After/i);
 });
 
+// B2: a 429 ends the run with exit 75 and ONE request, whatever Retry-After holds.
+// Formatting the wait for the message must never throw into the generic-failure path.
+for (const [label, value] of [
+  ["an oversized number", "99999999999999999999"],
+  ["a number just past the Date range", "8640000000001"],
+  ["a negative number", "-5"],
+  ["garbage", "soon, please"],
+  ["an HTTP date in the past", "Fri, 13 Nov 2020 12:00:00 GMT"],
+  ["an HTTP date beyond the representable range", "Fri, 13 Nov 275760 12:00:00 GMT"],
+  ["an empty value", ""],
+]) {
+  test(`indexnow: a 429 with Retry-After = ${label} still stops after one request with exit 75`, async () => {
+    const f = fakeFetch(() => new Response("", { status: 429, headers: { "Retry-After": value } }));
+    const r = await go(["--all"], { fetch: f });
+    assert.equal(r.calls.length, 1, "no second endpoint after a 429");
+    assert.equal(r.code, 75, r.err);
+    assert.match(r.err, /stopping — no further request/);
+    assert.doesNotMatch(r.err, /FAILED/);
+  });
+}
+
+test("indexnow: an unparseable Retry-After is printed as «unknown», not as a date", async () => {
+  const f = fakeFetch(() => new Response("", { status: 429, headers: { "Retry-After": "99999999999999999999" } }));
+  const r = await go(["--all"], { fetch: f });
+  assert.match(r.err, /unknown/);
+  assert.doesNotMatch(r.err, /Invalid|NaN|Infinity/);
+});
+
+test("indexnow: a 429 whose diagnostics cannot be built (broken clock) still exits 75 after one request", async () => {
+  const f = fakeFetch(() => new Response("", { status: 429, headers: { "Retry-After": "120" } }));
+  let n = 0;
+  const now = () => {
+    if (++n > 0) throw new Error("clock exploded");
+    return new Date();
+  };
+  const r = await go(["--all"], { fetch: f, now });
+  assert.equal(r.calls.length, 1);
+  assert.equal(r.code, 75, r.err);
+});
+
 test("indexnow: a plain server error is exit 1, not the rate-limit code, and the other endpoint is still tried", async () => {
   const f = fakeFetch(() => new Response("", { status: 500 }));
   const r = await go(["--all"], { fetch: f });
@@ -146,7 +186,7 @@ test("indexnow: a plain server error is exit 1, not the rate-limit code, and the
 // ---- deploy.sh wiring: what it hands to the submit script --------------------------
 // Fake-ssh project like google-seo.test.mjs; the submit script is a stub that prints
 // its arguments and the plan file it was given.
-function deployFixture({ webAbsent = false, change = false, rsyncFails = false } = {}) {
+function deployFixture({ webAbsent = false, change = false, rsyncFails = false, sameStat = false } = {}) {
   const t = tmp("indeploy");
   mkdirSync(join(t, "proj", "scripts"), { recursive: true });
   cpSync(join(ROOT, "scripts", "deploy.sh"), join(t, "proj", "scripts", "deploy.sh"));
@@ -165,6 +205,14 @@ function deployFixture({ webAbsent = false, change = false, rsyncFails = false }
   mkdirSync(join(t, "web", "guides"), { recursive: true });
   writeFileSync(join(t, "web", "index.html"), "same");
   writeFileSync(join(t, "web", "guides", "a.html"), "same");
+  if (sameStat) {
+    // Equal size AND equal mtime, different content: only a content (checksum) compare sees it.
+    writeFileSync(join(t, "proj", "build", "guides", "a.html"), "NEW1");
+    writeFileSync(join(t, "web", "guides", "a.html"), "OLD1");
+    const when = new Date("2026-01-01T00:00:00Z");
+    utimesSync(join(t, "proj", "build", "guides", "a.html"), when, when);
+    utimesSync(join(t, "web", "guides", "a.html"), when, when);
+  }
   mkdirSync(join(t, "bin"));
   writeFileSync(join(t, "bin", "ssh"), [
     "#!/bin/sh",
@@ -230,4 +278,59 @@ test("deploy.sh: a rate-limited IndexNow (exit 75) is reported as a wait, not as
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /rate-limited/i);
   assert.match(r.out, /gsc-ran/);
+});
+
+// B1: the URL reported to IndexNow must be a page that really changed on the server.
+test("deploy.sh: equal-size, equal-mtime pages with different content are transferred AND submitted", { skip: !has("rsync") }, async () => {
+  const { t, deploy } = deployFixture({ sameStat: true });
+  const r = await deploy();
+  assert.equal(r.code, 0, r.out);
+  assert.equal(readFileSync(join(t, "web", "guides", "a.html"), "utf8"), "NEW1", "the destination has the new content");
+  assert.match(r.out, /stub-plan:\[<f\S+ guides\/a\.html\]/, "that page is the one submitted");
+});
+
+// N1: once the site is live nothing may abort the script.
+function failingMktemp(t, body) {
+  writeFileSync(join(t, "bin", "mktemp"), `#!/bin/sh\n${body}\n`);
+  chmodSync(join(t, "bin", "mktemp"), 0o755);
+}
+
+test("deploy.sh: a failing mktemp warns and still runs the GSC submit and the final status", { skip: !has("rsync") }, async () => {
+  const { t, deploy } = deployFixture({ change: true });
+  failingMktemp(t, "exit 1");
+  const r = await deploy();
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /WARN[^\n]*(temp|plan)/i);
+  assert.doesNotMatch(r.out, /stub-args/, "IndexNow is skipped without a change list");
+  assert.match(r.out, /gsc-ran/);
+  assert.match(r.out, /\[deploy\] done\./);
+});
+
+test("deploy.sh: an unwritable plan file warns and still runs the GSC submit and the final status", { skip: !has("rsync") }, async () => {
+  const { t, deploy } = deployFixture({ change: true });
+  failingMktemp(t, `echo "${t}/no-such-dir/plan"`);
+  const r = await deploy();
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /WARN[^\n]*(temp|plan)/i);
+  assert.match(r.out, /gsc-ran/);
+  assert.match(r.out, /\[deploy\] done\./);
+});
+
+test("deploy.sh: the plan temp file is removed even when the submit step fails", { skip: !has("rsync") }, async () => {
+  const { t, deploy } = deployFixture({ change: true });
+  writeFileSync(join(t, "proj", "scripts", "indexnow-submit.mjs"), "process.exit(1);\n");
+  mkdirSync(join(t, "tmpdir"));
+  const spawnEnvDeploy = new Promise((resolve) => {
+    const p = spawn("bash", [join(t, "proj", "scripts", "deploy.sh")], {
+      cwd: ROOT,
+      env: { ...process.env, PATH: `${join(t, "bin")}:${process.env.PATH}`, BLOG_HOST: "fakehost", BLOG_WEBROOT: join(t, "web"), TMPDIR: join(t, "tmpdir") },
+    });
+    let out = "";
+    p.stdout.on("data", (d) => (out += d));
+    p.stderr.on("data", (d) => (out += d));
+    p.on("close", (code) => resolve({ code, out }));
+  });
+  const r = await spawnEnvDeploy;
+  assert.equal(r.code, 0, r.out);
+  assert.deepEqual(readdirSync(join(t, "tmpdir")), [], "no plan file left behind");
 });

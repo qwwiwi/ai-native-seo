@@ -80,7 +80,10 @@ case "$WEBROOT_RC:$WEBROOT_STATE" in
 esac
 
 echo "[deploy] rsync build/ → $HOST:$WEBROOT"
-rsync -az --delete -e "ssh -o ConnectTimeout=15" "$ROOT/build/" "$HOST:$WEBROOT/"
+# --checksum here too: the dry-run plan above decides by content, so the real transfer
+# must decide the same way — otherwise a page with the same size and mtime but new
+# content is in the plan (and gets submitted to IndexNow) yet is never copied.
+rsync -az --delete --checksum -e "ssh -o ConnectTimeout=15" "$ROOT/build/" "$HOST:$WEBROOT/"
 "${SSH[@]}" "chown -R www-data:www-data \"$WEBROOT\""
 
 # The site is live from here on: the search pings are independent and non-fatal.
@@ -88,14 +91,25 @@ rsync -az --delete -e "ssh -o ConnectTimeout=15" "$ROOT/build/" "$HOST:$WEBROOT/
 # the GSC submit nor fails a finished deploy — but it is never silent.
 echo "[deploy] IndexNow notification (Yandex + Bing): changed pages only"
 INDEXNOW_RC=0
+PLAN_FILE=""
+# The temp file is removed on any exit; a failing cleanup only warns.
+cleanup_plan_file() {
+  if [ -n "$PLAN_FILE" ] && [ -e "$PLAN_FILE" ]; then
+    rm -f "$PLAN_FILE" || echo "[deploy] WARN: could not remove temp file $PLAN_FILE" >&2
+  fi
+}
+trap cleanup_plan_file EXIT
 if [ "$#" -gt 0 ]; then
   # explicit URLs or --all: the caller decided, pass them through untouched
   node "$ROOT/scripts/indexnow-submit.mjs" "$@" || INDEXNOW_RC=$?
 elif [ "$PREVIOUS_STATE_KNOWN" = "1" ]; then
-  PLAN_FILE="$(mktemp)"
-  printf '%s\n' "$PLAN" > "$PLAN_FILE"
-  node "$ROOT/scripts/indexnow-submit.mjs" --rsync-plan "$PLAN_FILE" || INDEXNOW_RC=$?
-  rm -f "$PLAN_FILE"
+  # The site is live: a temp-file problem must warn and continue, never abort (set -e).
+  if PLAN_FILE="$(mktemp)" && [ -n "$PLAN_FILE" ] && printf '%s\n' "$PLAN" > "$PLAN_FILE"; then
+    node "$ROOT/scripts/indexnow-submit.mjs" --rsync-plan "$PLAN_FILE" || INDEXNOW_RC=$?
+  else
+    INDEXNOW_RC=1
+    echo "[deploy] WARN: cannot write the temporary change-list file — IndexNow skipped; the site itself is already live" >&2
+  fi
 else
   echo "[deploy] no previous deploy state (first deploy) — nothing submitted automatically."
   echo "[deploy] To submit the whole site once: node scripts/indexnow-submit.mjs --all"

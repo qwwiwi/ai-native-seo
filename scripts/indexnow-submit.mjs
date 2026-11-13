@@ -90,14 +90,48 @@ function changedUrls(planText, sitemap) {
   return sitemap.filter((u) => changed.has(u));
 }
 
-/** Seconds to wait from a Retry-After header (delta-seconds or HTTP-date); null if absent/unparseable. */
+/** Longest wait (one year, in seconds) treated as a real Retry-After; anything beyond is «unknown». */
+const MAX_WAIT_SECONDS = 365 * 24 * 3600;
+
+/**
+ * Seconds to wait from a Retry-After header (delta-seconds or HTTP-date). Returns null
+ * when the value is absent, unparseable or beyond MAX_WAIT_SECONDS. Only used for the
+ * message: the 429 stop does not depend on it.
+ */
 function retryAfterSeconds(value, now) {
   if (value === null || value === undefined || String(value).trim() === "") return null;
   const v = String(value).trim();
-  if (/^\d+$/.test(v)) return Number(v);
-  const t = Date.parse(v);
-  if (Number.isNaN(t)) return null;
-  return Math.max(0, Math.ceil((t - now().getTime()) / 1000));
+  let seconds;
+  if (/^\d+$/.test(v)) {
+    seconds = Number(v);
+  } else {
+    const t = Date.parse(v);
+    if (Number.isNaN(t)) return null;
+    seconds = Math.max(0, Math.ceil((t - now().getTime()) / 1000));
+  }
+  return Number.isFinite(seconds) && seconds <= MAX_WAIT_SECONDS ? seconds : null;
+}
+
+/** Message for a 429. Never throws: a broken header or clock degrades to «unknown». */
+function rateLimitMessage(header, now) {
+  const absent = header === null || header === undefined || String(header).trim() === "";
+  let wait = null;
+  try {
+    wait = retryAfterSeconds(header, now);
+  } catch {
+    wait = null;
+  }
+  if (wait === null) {
+    return absent
+      ? "IndexNow: rate limited and the server sent no Retry-After — wait before the next run (at least an hour), then rerun."
+      : "IndexNow: rate limited. Retry-After: unknown (the server's value could not be read) — wait at least an hour before the next run, then rerun.";
+  }
+  try {
+    const until = new Date(now().getTime() + wait * 1000).toISOString();
+    return `IndexNow: rate limited. Retry-After: ${wait} s (do not retry before ${until}).`;
+  } catch {
+    return `IndexNow: rate limited. Retry-After: ${wait} s (the retry time could not be computed).`;
+  }
 }
 
 /**
@@ -189,14 +223,16 @@ export async function run({
       if (res.status === 200 || res.status === 202) {
         log(`  ${endpoint} → ${res.status} ${res.statusText}`);
       } else if (res.status === 429) {
-        const wait = retryAfterSeconds(res.headers.get("Retry-After"), now);
-        error(`  ${endpoint} → 429 Too Many Requests`);
-        if (wait === null) {
-          error("IndexNow: rate limited and the server sent no Retry-After — wait before the next run (at least an hour), then rerun.");
-        } else {
-          const until = new Date(now().getTime() + wait * 1000).toISOString();
-          error(`IndexNow: rate limited. Retry-After: ${wait} s (do not retry before ${until}).`);
+        // The stop must not depend on the header: reading it and formatting the wait
+        // are guarded, and the return below is unconditional.
+        let header = null;
+        try {
+          header = res.headers.get("Retry-After");
+        } catch {
+          header = null;
         }
+        error(`  ${endpoint} → 429 Too Many Requests`);
+        error(rateLimitMessage(header, now));
         error("IndexNow: stopping — no further request in this run.");
         return EXIT_RATE_LIMITED;
       } else {
