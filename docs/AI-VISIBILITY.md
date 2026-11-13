@@ -9,6 +9,9 @@
 > доступ) или «beta» (пробная версия), и поисковики меняют их без предупреждения.
 > Всё описанное ниже сверено с первоисточниками на **2026-11-13** (ссылки и даты — в конце).
 > Что источники не подтвердили, помечено **«не подтверждено»** — проверяйте у себя в кабинете.
+> Про ChatGPT отдельно: что требует OpenAI, как страница доходит до ответа, как это измерять
+> и какие утверждения не подтверждены — в разделах «Что требует OpenAI…», «Цепочка…»,
+> «Как измерять…» и «Мифы…» ниже.
 
 ## Метод в трёх предложениях
 
@@ -155,6 +158,105 @@ ChatGPT мог переписать вопрос перед поиском; ча
 прямо показывает пробелы. Но это не гарантия присутствия в ChatGPT. Используйте Bing как
 подсказку, какие темы закрыть, а не как обещание результата.
 
+## Что требует OpenAI, чтобы страница могла попасть в ответ ChatGPT
+
+Всё в этом разделе сверено с документами OpenAI на **2026-11-13**. Что там не сказано,
+помечено **«не подтверждено»** или **«не документировано»** — это не значит «неправда», это
+значит «источника у нас нет».
+
+**Требование одно, и оно про доступ.** У OpenAI два разных робота (**робот** — программа,
+которая обходит сайты и читает страницы): **GPTBot** собирает данные для обучения моделей, а
+**OAI-SearchBot** обслуживает поиск ChatGPT. Чтобы сайт попадал в поиск ChatGPT, нужно:
+
+1. **Разрешить OAI-SearchBot в `robots.txt`** (файл в корне сайта, где написано, каких
+   роботов куда пускать). У сайтов, которые его запретили, по словам OpenAI, страницы «will
+   not be shown in ChatGPT search answers, though can still appear as navigational links» —
+   то есть не показываются в ответах, но могут остаться обычными ссылками. Источники:
+   [OpenAI: боты](https://developers.openai.com/api/docs/bots), справка
+   [Searching the web](https://help.openai.com/en/articles/9237897-chatgpt-search),
+   раздел «Make your website available».
+2. **Не блокировать адреса этого робота на хостинге и в CDN** (CDN — сеть доставки сайта,
+   например Cloudflare; она стоит между посетителем и вашим сервером и может сама отсекать
+   роботов). Список IP-адресов (адрес компьютера в сети, по нему видно, откуда пришёл
+   запрос) OpenAI публикует здесь: <https://openai.com/searchbot.json>. Источник — те же два документа.
+
+Что ещё сказано в первоисточнике:
+
+- **GPTBot и OAI-SearchBot настраиваются независимо.** Запретить GPTBot (обучение) — не
+  значит пропасть из поиска. Изменения в `robots.txt` OpenAI учитывает примерно за 24 часа
+  ([OpenAI: боты](https://developers.openai.com/api/docs/bots)).
+- **ChatGPT-User на попадание в поиск не влияет.** Это третий робот OpenAI: он заходит на
+  страницу, когда пользователь сам просит ChatGPT её открыть. Документ OpenAI прямо
+  говорит, что он «not used to determine whether content may appear in Search», а правила
+  `robots.txt` к нему «may not apply» (там же).
+- **Место в ответе не гарантируется.** «Placement is not guaranteed», а факторы ранжирования
+  названы общими словами («multiple factors») без списка
+  ([справка OpenAI](https://help.openai.com/en/articles/9237897-chatgpt-search)).
+
+Что у нас: `robots.txt` собирается в `scripts/build-seo.mjs` и **разрешает** OAI-SearchBot.
+Блокировку по IP на хостинге и в Cloudflare никто не проверял — как проверить, написано в
+[`DEPLOY.md`](DEPLOY.md), раздел «Журнал визитов роботов».
+
+## Цепочка «публикация → индекс → цитата» простыми словами
+
+Как страница попадает в ответ ChatGPT, шаг за шагом:
+
+1. **Публикация.** Вы выкладываете страницу на сайт.
+2. **Обход.** Роботы приходят и читают её: OAI-SearchBot (робот OpenAI) и bingbot (робот
+   Bing). Так страница попадает в **индекс** — огромную базу страниц, из которой поисковик
+   выбирает, что показать. Если робота не пустили (см. выше), здесь цепочка рвётся.
+3. **Вопрос.** Пользователь задаёт вопрос. ChatGPT сам решает, нужен ли поиск в интернете.
+4. **Поисковые фразы.** ChatGPT переписывает вопрос в одну или несколько коротких поисковых
+   фраз и отправляет их поисковым провайдерам (источник: справка OpenAI, ссылка выше).
+   Среди провайдеров OpenAI называет Microsoft: «ChatGPT search sometimes partners with other
+   search providers», а в списке политик приватности стоит Microsoft
+   ([справка](https://help.openai.com/en/articles/9237897-chatgpt-search),
+   [анонс 2024-10-31](https://openai.com/index/introducing-chatgpt-search/)). Слово «Bing» там
+   не названо, а доля Bing **не документирована**.
+5. **Ответ и цитата.** Из найденных страниц модель собирает ответ и ставит ссылки-источники.
+   Чем именно отбираются страницы между шагами 4 и 5, **не опубликовано**.
+
+**Наш вывод, а не факт из документации:** страница должна быть доступна роботу OpenAI и
+находиться в поисковых индексах, откуда ChatGPT берёт кандидатов; Bing — единственный такой
+индекс, на который намекает сама OpenAI. Поэтому работа с Bing (кабинет, sitemap, IndexNow) —
+дешёвая подстраховка, но не обещание места в ответе.
+
+## Как измерять: приходят ли люди и роботы
+
+| Что смотреть | Где | Что учесть |
+|---|---|---|
+| **Визиты робота OAI-SearchBot** — пришёл ли и получил ли 200 | журнал сервера Caddy: строка `OAI-SearchBot` и код ответа; IP сверить со списком OpenAI | Готовая команда и пошаговая сверка — в [`DEPLOY.md`](DEPLOY.md), раздел «Журнал визитов роботов». До включения журнала проверить было нечем |
+| **Переходы людей из ChatGPT** | Яндекс Метрика и GA4: источник (реферер — адрес сайта, с которого пришёл человек) `chatgpt.com`; метка `utm_source=chatgpt.com` (UTM-метка — хвост в адресе ссылки, по которому аналитика узнаёт источник) | Метка `utm_source=chatgpt.com` **не подтверждена**: в открытых документах OpenAI мы её не нашли, статья для издателей, которую мы искали, больше не открывается. Проверяйте по своим данным: есть ли такой источник в отчёте. Про сам реферер первоисточник мы не открывали |
+| **Bing Webmaster Tools** | кабинет Bing: индексация сайта, проверка отдельного URL, полученные IndexNow-отправки, отчёт AI Performance | AI Performance — это Microsoft Copilot и AI-сводки Bing, **ChatGPT там не назван** ([Bing blog 2026-02-10](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview)). Сайт можно подтвердить импортом из Google Search Console ([Bing blog 2025-06-17](https://blogs.bing.com/webmaster/2025/6/Start-Using-Bing-Webmaster-Tools-to-Improve-Your-Site-Visibility/)) |
+| **Ручной замер** | раз в неделю задать ChatGPT 10–20 своих целевых вопросов с включённым поиском и записать, кого он цитирует | Единственный прямой замер, но ответы меняются от раза к разу |
+
+## Мифы и то, чего никто не документировал
+
+| Утверждение | Что на самом деле |
+|---|---|
+| «Попал в топ Bing — попал в ChatGPT» | Гарантий нет. **Доля Bing в поиске ChatGPT нигде не опубликована**; ни OpenAI, ни Microsoft этого не говорят. Цифра «87%» — старое маленькое исследование, см. раздел выше |
+| «IndexNow = индексация» | IndexNow — уведомление поисковика о новой или изменённой странице. Он «does not guarantee that web pages will be crawled or indexed», код ответа 200 значит только «получено» ([indexnow.org/documentation](https://www.indexnow.org/documentation), [bing.com/indexnow/getstarted](https://www.bing.com/indexnow/getstarted)). Для AI-ответов самого Bing свежесть страницы он помогает поддерживать, для ChatGPT это **не подтверждено** ([Bing blog 2026-02-10](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview)) |
+| «Чем чаще слать в IndexNow, тем лучше» | Наоборот: протокол «not designed for submitting every URL on your site at once», слать нужно только изменившиеся страницы и не один адрес много раз в день без правок; при ответе 429 — смотреть `Retry-After` ([indexnow.org/faq](https://www.indexnow.org/faq), [bing.com/indexnow/getstarted](https://www.bing.com/indexnow/getstarted)). Наш `deploy.sh` по умолчанию шлёт только изменённое |
+| «Отчёт Bing показывает цитаты в ChatGPT» | **Не подтверждено.** Отчёт покрывает Copilot, AI-сводки Bing и «select partner integrations»; ChatGPT не назван |
+| «Разрешу ChatGPT-User — попаду в поиск» | Нет: на попадание в поиск он не влияет (см. выше) |
+| «Запретил GPTBot — пропал из поиска ChatGPT» | Нет: это независимые настройки |
+| «`llms.txt` поднимает в ответах ChatGPT или Bing» | **Не подтверждено**: в открытых документах OpenAI и Bing файл не упоминается |
+| «Достаточно настроить сайт, и ChatGPT начнёт цитировать» | Места в ответе никто не гарантирует (см. выше) |
+| «Для русских запросов всё так же» | **Не документировано.** OpenAI ничего не публикует про поиск по русским запросам и про провайдеров по языкам. Bing знает рынок ru-RU и русский язык, но страница с этим архивная (2020), о качестве покрытия русского контента данных нет ([MS Learn: market codes](https://learn.microsoft.com/en-us/bing/search-apis/bing-web-search/reference/market-codes)). Bing не пишет и на каких языках работают AI Performance и Topics Portfolio |
+
+Что подтверждено у Microsoft про сам сайт (рекомендации, цифр эффекта нет): честная дата
+изменения `lastmod` в sitemap — Bing читает sitemap не реже раза в сутки и игнорирует
+`changefreq` и `priority`
+([Bing blog 2025-07-31](https://blogs.bing.com/webmaster/July-2025/Keeping-Content-Discoverable-with-Sitemaps-in-AI-Powered-Search));
+понятная структура страницы — заголовки, «вопрос — ответ», списки, таблицы — и важное не в
+раскрывающихся блоках, потому что «AI systems may not render hidden content»
+([Microsoft Advertising blog 2025-10-08](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers)).
+
+> **Оговорка про цитаты.** Страницы OpenAI открывались через сторонний сервис-читалку
+> (прямой запрос давал 403), а страницы Microsoft — через пересказ небольшой моделью. Дословно
+> проверены справка 9237897, анонс 2024 года и документ OpenAI о ботах; остальные английские
+> цитаты перед публикацией где-либо ещё сверьте глазами с оригиналом.
+
 ## Первая настройка — один раз
 
 Сначала выберите, с чего начать. Если у вас нет ни одного кабинета — начните с Bing: это
@@ -254,6 +356,16 @@ ChatGPT мог переписать вопрос перед поиском; ча
 |---|---|---|
 | Bing: AI Performance (public preview) | 2026-02-10 | <https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview> |
 | Bing: Topics Portfolio (beta) | 2026-10-13 | <https://blogs.bing.com/webmaster/2026/10/introducing-topics-portfolio-beta-in-ai-performance/> |
+| OpenAI: боты (OAI-SearchBot, GPTBot, ChatGPT-User) | открыта 2026-11-13 | <https://developers.openai.com/api/docs/bots> |
+| OpenAI: справка «Searching the web» (поиск ChatGPT) | обновлена примерно за 25 дней до 2026-11-13 | <https://help.openai.com/en/articles/9237897-chatgpt-search> |
+| OpenAI: анонс поиска ChatGPT | 2024-10-31 | <https://openai.com/index/introducing-chatgpt-search/> |
+| OpenAI: IP-адреса OAI-SearchBot | файл от 2026-01-02 | <https://openai.com/searchbot.json> |
+| IndexNow: документация и FAQ | дата не указана | <https://www.indexnow.org/documentation>, <https://www.indexnow.org/faq> |
+| Bing: IndexNow, начало работы | дата не указана | <https://www.bing.com/indexnow/getstarted> |
+| Bing: sitemap в AI-поиске | 2025-07-31 | <https://blogs.bing.com/webmaster/July-2025/Keeping-Content-Discoverable-with-Sitemaps-in-AI-Powered-Search> |
+| Bing: старт с Webmaster Tools (импорт из GSC, IndexNow) | 2025-06-17 | <https://blogs.bing.com/webmaster/2025/6/Start-Using-Bing-Webmaster-Tools-to-Improve-Your-Site-Visibility/> |
+| Microsoft Advertising: контент для AI-ответов | 2025-10-08 | <https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers> |
+| Microsoft Learn: коды рынков Bing (архивная страница) | 2020 | <https://learn.microsoft.com/en-us/bing/search-apis/bing-web-search/reference/market-codes> |
 | Bing: доступ к API | дата не указана | <https://learn.microsoft.com/en-us/bingwebmaster/getting-access> |
 | Bing: список методов API (`IWebmasterApi`) | документация 2023 | <https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.iwebmasterapi> |
 | Seer Interactive: «87% of SearchGPT Citations Match Bing's Top Results» | 2025-02-06 | <https://www.seerinteractive.com/insights/87-percent-of-searchgpt-citations-match-bings-top-results> |

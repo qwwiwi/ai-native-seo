@@ -8,7 +8,7 @@
     "lint": "node scripts/content-lint.mjs",
     "build": "node scripts/prerender.mjs",
     "verify": "node scripts/verify-google-seo.mjs && node scripts/verify-category-pages.mjs && node scripts/verify-related.mjs && node scripts/verify-readthrough-analytics.mjs",
-    "test": "node --test tests/google-seo.test.mjs tests/no-old-vendor.test.mjs",
+    "test": "node --test tests/google-seo.test.mjs tests/no-old-vendor.test.mjs tests/indexnow.test.mjs",
     "check": "scripts/check.sh"
   },
   "comments": {

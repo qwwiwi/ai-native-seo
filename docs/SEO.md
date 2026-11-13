@@ -29,7 +29,8 @@ IG / контент → клик (Sink) → визит (Метрика / GA4) �
 - Приоритет: вторичный для РФ (главный — Яндекс), нужен под Google + цитирование в AI Overviews.
 
 ### Bing Webmaster Tools — не подключён, инструкция в [`AI-VISIBILITY.md`](AI-VISIBILITY.md)
-- Нужен для отчётов AI Performance / Topics Portfolio (запросы, где цитируют других, а нас нет). Сейчас до Bing доходят только IndexNow-пинги.
+- Нужен для отчётов AI Performance / Topics Portfolio (запросы, где цитируют других, а нас нет); эти отчёты покрывают Copilot и AI-сводки Bing, ChatGPT в них не назван.
+- Сейчас до Bing доходят только IndexNow-уведомления об изменённых страницах. IndexNow уведомляет, но не гарантирует ни обход, ни индексацию ([indexnow.org](https://www.indexnow.org/documentation)); без кабинета видно только то, что запрос принят. Что нужно ChatGPT от сайта (доступ OAI-SearchBot) и как это измерить — в [`AI-VISIBILITY.md`](AI-VISIBILITY.md).
 
 ## Поведение на сайте
 

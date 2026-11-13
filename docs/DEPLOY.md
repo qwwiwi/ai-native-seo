@@ -28,7 +28,8 @@ scripts/check.sh              # content-lint → npm test → npm run build → 
 scripts/check.sh --no-build   # то же без сборки — проверки по уже собранному build/
 ```
 
-- `npm test` — `node --test tests/google-seo.test.mjs` (юнит/регрессии, без сети).
+- `npm test` — `node --test` по `tests/*.test.mjs` из `package.json` (юнит/регрессии, без сети;
+  `tests/indexnow.test.mjs` — отправка в IndexNow с подменой сети: настоящие адреса не вызываются).
 - `npm run verify` — пост-билд проверки: `verify-google-seo.mjs` (sitemap/lastmod, «Все
   материалы», UTM своего slug, крошки), `verify-category-pages.mjs` (страницы категорий —
   листинги, все ссылки/крошки резолвятся), `verify-related.mjs`, `verify-readthrough-analytics.mjs`.
@@ -61,11 +62,12 @@ rsync -azn --delete --checksum --out-format='%i %n' build/ "$BLOG_HOST:$BLOG_WEB
 снёс бы с прода чужие свежие гайды вместе с обложками — смёржи `main` и пересобери.
 
 **Канонический способ — `scripts/deploy.sh`** (сухой прогон с гейтом удалений → бэкап → rsync →
-chown → авто-пинг IndexNow → сабмит sitemap в Google Search Console):
+chown → уведомление IndexNow → сабмит sitemap в Google Search Console):
 ```bash
 npm run build                                   # линт-гейт + пре-рендер + SEO-слой
-scripts/deploy.sh                               # деплой + IndexNow по всем URL sitemap
-scripts/deploy.sh https://blog.edgelab.space/guides/<slug>/   # ...только изменённые URL
+scripts/deploy.sh                               # деплой + IndexNow ТОЛЬКО по страницам, чей контент изменился
+scripts/deploy.sh https://blog.edgelab.space/guides/<slug>/   # ...вместо этого — ровно эти URL
+scripts/deploy.sh --all                         # ...вместо этого — все URL sitemap (редко, осознанно)
 # с Mac mini: BLOG_HOST=root@100.116.42.100 scripts/deploy.sh   (Tailscale-адрес бокса)
 ```
 Под капотом (если деплоить руками):
@@ -81,20 +83,117 @@ caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 systemctl reload caddy
 ```
 
-## IndexNow (мгновенная переиндексация Яндекс + Bing)
+## IndexNow (уведомление Яндекса и Bing об изменённых страницах)
+
+**IndexNow** — это протокол, которым сайт сообщает поисковикам: «эта страница появилась или
+изменилась, зайдите и посмотрите». Это **уведомление, а не гарантия**: сами поисковики
+пишут, что IndexNow «не гарантирует, что страницы будут просканированы или проиндексированы»
+([indexnow.org/documentation](https://www.indexnow.org/documentation),
+[bing.com/indexnow/getstarted](https://www.bing.com/indexnow/getstarted)), а ответ 200/202 значит
+только «получили». Слать им весь сайт при каждом деплое тоже не предполагается («not designed
+for submitting every URL on your site at once», [indexnow.org/faq](https://www.indexnow.org/faq)) —
+поэтому по умолчанию уходят только изменённые страницы.
 
 `build-seo.mjs` кладёт ключ-файл `build/<KEY>.txt` (KEY = `INDEXNOW_KEY`, body = сам
 ключ) — после rsync он резолвится как `https://blog.edgelab.space/<KEY>.txt`. Сразу
-ПОСЛЕ деплоя (URL уже живые — IndexNow проверяет резолв) пингуем движки:
+ПОСЛЕ деплоя (URL уже живые — IndexNow проверяет резолв) `deploy.sh` уведомляет движки.
+
+**Как скрипт узнаёт, что изменилось.** Предыдущее состояние — это живой webroot на сервере.
+Сухой прогон `rsync --checksum` (он нужен для гейта удалений) уже перечисляет файлы, чьё
+содержимое отличается от живого или которых там ещё нет; из этого списка берутся страницы
+(`.html`), которые есть в `sitemap.xml`. Отдельный файл состояния нигде не хранится.
+
+| Ситуация | Что уходит в IndexNow |
+|---|---|
+| Деплой без изменений контента | 0 URL, запросов в сеть нет |
+| Правка одного гайда | URL этого гайда, плюс листинги (главная, каталог, страница категории), если их HTML тоже изменился |
+| Первый деплой (webroot ещё нет — сравнивать не с чем) | ничего автоматически; скрипт печатает команду `--all` |
+| `scripts/deploy.sh <url>…` | ровно эти URL |
+| `scripts/deploy.sh --all` | все URL из `sitemap.xml` |
 
 ```bash
-node scripts/indexnow-submit.mjs                      # все URL из sitemap.xml
-node scripts/indexnow-submit.mjs https://blog.edgelab.space/guides/<slug>/   # только изменённые
-node scripts/indexnow-submit.mjs --dry-run            # проверить payload, не слать
+node scripts/indexnow-submit.mjs https://blog.edgelab.space/guides/<slug>/   # только эти URL
+node scripts/indexnow-submit.mjs --all                # ВСЕ URL из sitemap.xml (редко, осознанно)
+node scripts/indexnow-submit.mjs --dry-run --all      # проверить payload, не слать
+node scripts/indexnow-submit.mjs                      # ничего не шлёт, печатает подсказку
 ```
 
-Шлёт на `yandex.com/indexnow` + `api.indexnow.org` (Bing/общий). Запускать с Thrall
-(сеть к движкам есть). 200/202 = принято. Ключ менять не нужно — он стабилен в репо.
+Шлёт на `yandex.com/indexnow` + `api.indexnow.org` (Bing/общий; отправка на одну точку
+расшаривается между движками, вторая — лишь дополнение). Запускать с Thrall (сеть к
+движкам есть). 200/202 = принято. Ключ менять не нужно — он стабилен в репо.
+
+**Коды выхода `indexnow-submit.mjs`:**
+
+| Код | Значение | Что делать |
+|---|---|---|
+| 0 | отправлено, либо слать было нечего | — |
+| 1 | ошибка: плохие аргументы, URL не с нашего хоста, сеть, ответ не 200/202/429 | смотреть строки выше, перезапустить |
+| 75 | **HTTP 429 — слишком много запросов.** Скрипт печатает время ожидания из заголовка `Retry-After` (в секундах и моментом, раньше которого повторять нельзя), **не делает ни одного следующего запроса** и останавливается | подождать указанное время и запустить снова только для изменённых URL; не повторять в цикле — каждая повторная попытка продлевает блокировку |
+
+`deploy.sh` на код 75 не падает (сайт уже выложен): печатает предупреждение «IndexNow is
+rate-limited» и продолжает отправку sitemap в Google.
+
+## Журнал визитов роботов: приходят ли OAI-SearchBot и bingbot
+
+**Зачем.** Чтобы страница могла попасть в ответ ChatGPT, OpenAI требует пускать на сайт его
+поискового робота **OAI-SearchBot** и не блокировать его адреса на хостинге или в CDN
+(сети доставки, у нас это Cloudflare) — см. [`AI-VISIBILITY.md`](AI-VISIBILITY.md). Проверить
+это можно только по журналу сервера: в нём видно, кто заходил, под каким именем
+(**User-Agent** — строка, которой программа представляется сайту) и что получил в ответ.
+Код 200 — страницу отдали, 403 — не пустили. Поэтому в `deploy/caddy-blog-block.txt`
+включён журнал `log`: одна строка JSON на запрос, файл `/var/log/caddy/blog-access.log`.
+
+**Один раз на сервере** (до свапа блока; делает владелец сервера):
+```bash
+mkdir -p /var/log/caddy && chown caddy:caddy /var/log/caddy   # пользователь веб-сервера может называться иначе — проверь `ps -o user= -C caddy`
+```
+Дальше — обычный свап блока (раздел «Редиректы и noindex») и `caddy validate … && systemctl reload caddy`.
+
+**Ротация** (чтобы журнал не заполнил диск): новый файл при 50 МБ, хранятся 5 последних, но не
+старше 30 дней. В журнале есть IP посетителей — это персональные данные: не выкладывайте
+журнал в открытый доступ и не копируйте его в чаты.
+
+**Как проверить визиты роботов.** Нужен `jq` (утилита для чтения JSON; ставится `apt install jq`).
+Сколько раз каждый робот приходил и с каким кодом ответа:
+```bash
+jq -r 'select(.request.headers["User-Agent"][0] | test("OAI-SearchBot|bingbot"; "i")) | [(.request.headers["User-Agent"][0] | capture("(?<bot>OAI-SearchBot|bingbot)"; "i").bot), .status] | @tsv' /var/log/caddy/blog-access.log | sort | uniq -c
+```
+Результат читается так: `12  OAI-SearchBot  200` — робот приходил 12 раз и получал страницу.
+Без `jq` то же для одного робота: `grep -i oai-searchbot /var/log/caddy/blog-access.log | grep -o '"status":[0-9]*' | sort | uniq -c`.
+
+- Везде 200 — роботов пускают.
+- Есть 403 (или 401, 5xx) — их блокирует хостинг, Cloudflare (режим блокировки AI-ботов) или
+  правило файрвола: это надо чинить, не дожидаясь контента. Проверка Cloudflare — вне репозитория.
+- Строк нет совсем — это ещё не доказательство, что робот не приходил. Возможны две причины:
+  либо он пока не заходил (это не ошибка; новые и маленькие сайты роботы навещают нечасто),
+  либо запрос отклонил CDN (сеть-посредник между посетителем и вашим сервером; здесь это
+  Cloudflare) — тогда он не дошёл до Caddy, и в журнале сервера (его называют «origin», то есть
+  «исходный сервер») следа нет. Поэтому при пустом результате откройте и журнал событий самого
+  CDN (в Cloudflare — раздел Security → Events: там видно, какие запросы заблокированы и каким
+  правилом) и поищите там OAI-SearchBot и bingbot. Пока оба журнала не проверены, вывод
+  «робот не заходил» делать нельзя. Журнал сервера стоит смотреть через несколько дней после
+  включения.
+
+**Настоящий ли это OAI-SearchBot.** Любой может назваться `OAI-SearchBot` в User-Agent.
+OpenAI публикует список адресов своего робота: <https://openai.com/searchbot.json>
+(источник: [OpenAI, боты](https://developers.openai.com/api/docs/bots)). Чтобы сверить:
+
+1. Достаньте адрес посетителя. Сайт стоит за Cloudflare, поэтому поле `request.remote_ip` —
+   это адрес Cloudflare, а настоящий лежит в заголовке `Cf-Connecting-Ip` (Caddy пишет все
+   заголовки запроса в журнал):
+   ```bash
+   jq -r 'select(.request.headers["User-Agent"][0] | test("OAI-SearchBot"; "i")) | (.request.headers["Cf-Connecting-Ip"][0] // .request.remote_ip)' /var/log/caddy/blog-access.log | sort | uniq -c
+   ```
+2. Скачайте список и проверьте адрес (подставьте свой IP вместо `203.0.113.5`; скрипт берёт из файла
+   все записи вида `адрес/число` и сверяет, не рассчитывая на конкретную структуру файла):
+   ```bash
+   curl -s https://openai.com/searchbot.json -o /tmp/searchbot.json
+   python3 -c 'import sys,re,ipaddress as i; nets=[i.ip_network(m,strict=False) for m in re.findall(r"[0-9a-fA-F:.]+/\d+", open(sys.argv[1]).read())]; ip=i.ip_address(sys.argv[2]); print("в списке OpenAI" if any(ip in n for n in nets if n.version==ip.version) else "НЕТ в списке OpenAI")' /tmp/searchbot.json 203.0.113.5
+   ```
+   «НЕТ в списке» при имени `OAI-SearchBot` — самозванец: на ваш контент он влияния не имеет.
+
+Для `bingbot` проверка адреса в этом гайде не описана — первоисточник для неё не открывался.
+Список OpenAI меняется (в файле есть поле с датой создания) — скачивайте свежий перед сверкой.
 
 ## Google Search Console (sitemap на каждый деплой)
 

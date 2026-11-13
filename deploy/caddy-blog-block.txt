@@ -3,6 +3,22 @@ blog.edgelab.space {
 	# them to your domain.site host and BLOG_WEBROOT (docs/DEPLOY.md).
 	root * /var/www/blog-edgelab-space
 	encode gzip
+
+	# Access log (one JSON line per request, with User-Agent and status): the only way
+	# to see that search robots (OAI-SearchBot, bingbot) really visit and get 200, not
+	# 403 (docs/DEPLOY.md «Журнал визитов роботов»). The directory must exist and be
+	# writable by the caddy user: mkdir -p /var/log/caddy && chown caddy:caddy /var/log/caddy
+	# Rotation: a new file at 50 MiB, the last 5 files kept for at most 30 days.
+	# Cookie/Authorization headers are masked by Caddy by default.
+	log {
+		output file /var/log/caddy/blog-access.log {
+			roll_size 50MiB
+			roll_keep 5
+			roll_keep_for 720h
+		}
+		format json
+	}
+
 	header X-Frame-Options "SAMEORIGIN"
 	header X-Content-Type-Options "nosniff"
 

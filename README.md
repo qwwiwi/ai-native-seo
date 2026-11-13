@@ -24,7 +24,7 @@
 | Структура | JSON-LD: Organization, WebSite, TechArticle, BreadcrumbList, HowTo, FAQPage | rich-сниппеты, Knowledge Graph |
 | AI-слой | `llms.txt` + `llms-full.txt` (весь корпус одним файлом), markdown-твин каждой статьи (`/guides/<slug>.md`), `<link rel="alternate" type="text/markdown">` | ChatGPT, Perplexity, Claude, LLM-краулеры |
 | Agent-native | `.well-known/mcp/server-card.json`, `.well-known/api-catalog`, `.well-known/agent-skills/index.json` | AI-агенты, MCP-клиенты |
-| Свежесть | IndexNow: автоматический пинг Яндекса и Bing при каждом деплое | мгновенная индексация |
+| Свежесть | IndexNow: при деплое уведомление Яндекса и Bing об изменённых страницах | сигнал на переобход (не гарантия индексации) |
 | Аналитика | Яндекс.Метрика (вебвизор, дочитываемость) + GA4 (scroll-depth, content_group) — прошиваются на сборке | измерение эффекта |
 
 Весь этот слой — **100% аддитивный**: дизайн страниц не меняется ни на пиксель.
@@ -116,8 +116,8 @@ BLOG_HOST=root@myserver BLOG_WEBROOT=/var/www/blog-mybrand scripts/deploy.sh
 ```
 
 Скрипт сам: сухой прогон (незапланированные удаления на проде → стоп, `ALLOW_DELETE=1`
-— если удаление намеренное) → бэкапит текущий webroot → rsync → chown → пингует IndexNow
-по всем URL из sitemap → сабмитит sitemap в Google Search Console (если задан
+— если удаление намеренное) → бэкапит текущий webroot → rsync → chown → уведомляет IndexNow
+только об изменённых страницах (все URL — флагом `--all`) → сабмитит sitemap в Google Search Console (если задан
 `analytics.gscProperty` и ключ; иначе шаг пропускается). Раздача — любой статический
 сервер (Caddy-блок в `deploy/`). Подробно — [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
@@ -129,7 +129,7 @@ BLOG_HOST=root@myserver BLOG_WEBROOT=/var/www/blog-mybrand scripts/deploy.sh
 - **Яндекс.Вебмастер / Google Search Console** — запросы и покрытие индекса.
 - **Видимость в ответах нейросетей** — по каким запросам вас цитируют AI-ответы, а по каким нет
   (Bing, Яндекс, Google): [`docs/AI-VISIBILITY.md`](docs/AI-VISIBILITY.md).
-- **IndexNow** — свежие URL попадают в Яндекс/Bing в течение часов, не недель.
+- **IndexNow** — при деплое уведомляет Яндекс и Bing об изменённых страницах (только о них); уведомляет, но не гарантирует обход и индексацию.
 
 ## Структура репозитория
 

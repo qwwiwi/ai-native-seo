@@ -290,6 +290,23 @@ function get(port, path, headers = {}) {
   });
 }
 
+// Start the real deploy/caddy-blog-block.txt on 127.0.0.1:<port> serving <web>. The block's
+// access-log file (prod: /var/log/caddy/…) is redirected into the temp dir <t>/access.log.
+function startCaddy(t, web, port) {
+  const block = readFileSync(join(ROOT, "deploy", "caddy-blog-block.txt"), "utf8")
+    .replace(/^\S+ \{/, `http://127.0.0.1:${port} {`)
+    .replace(/^\troot \* .*$/m, `\troot * ${web}`)
+    .replace(/output file \S+/, `output file ${join(t, "access.log")}`);
+  const conf = join(t, "Caddyfile");
+  writeFileSync(conf, `{\n\tadmin off\n\tstorage file_system ${join(t, "data")}\n}\n\n${block}`);
+  const caddy = spawn("caddy", ["run", "--config", conf, "--adapter", "caddyfile"], {
+    env: { ...process.env, HOME: t, XDG_DATA_HOME: join(t, "xdg"), XDG_CONFIG_HOME: join(t, "xdg") }, stdio: "pipe",
+  });
+  const logRef = { text: "" };
+  caddy.stderr.on("data", (d) => (logRef.text += d));
+  return { caddy, logRef };
+}
+
 test("caddy block: 301 to the canonical /x/ (query kept), noindex on twins/sidecars, styled 404", { skip: !has("caddy") }, async () => {
   const t = tmp("caddy");
   const web = join(t, "web");
@@ -301,22 +318,13 @@ test("caddy block: 301 to the canonical /x/ (query kept), noindex on twins/sidec
     [".well-known/mcp/server-card.json", "{}"],
   ]) { mkdirSync(dirname(join(web, p)), { recursive: true }); writeFileSync(join(web, p), body); }
   const port = await freePort();
-  const block = readFileSync(join(ROOT, "deploy", "caddy-blog-block.txt"), "utf8")
-    .replace(/^\S+ \{/, `http://127.0.0.1:${port} {`)
-    .replace(/^\troot \* .*$/m, `\troot * ${web}`);
-  const conf = join(t, "Caddyfile");
-  writeFileSync(conf, `{\n\tadmin off\n\tstorage file_system ${join(t, "data")}\n}\n\n${block}`);
-  const caddy = spawn("caddy", ["run", "--config", conf, "--adapter", "caddyfile"], {
-    env: { ...process.env, HOME: t, XDG_DATA_HOME: join(t, "xdg"), XDG_CONFIG_HOME: join(t, "xdg") }, stdio: "pipe",
-  });
-  let log = "";
-  caddy.stderr.on("data", (d) => (log += d));
+  const { caddy, logRef } = startCaddy(t, web, port);
   try {
     let up = false;
     for (let i = 0; i < 50 && !up; i++) {
       try { await get(port, "/sitemap.xml"); up = true; } catch { await new Promise((r) => setTimeout(r, 100)); }
     }
-    assert.ok(up, `caddy did not start:\n${log}`);
+    assert.ok(up, `caddy did not start:\n${logRef.text}`);
     const redirects = [
       ["/guides/x", "/guides/x/"],
       ["/guides/x.html?utm_source=ig&a=b", "/guides/x/?utm_source=ig&a=b"],
@@ -347,6 +355,45 @@ test("caddy block: 301 to the canonical /x/ (query kept), noindex on twins/sidec
   } finally {
     caddy.kill("SIGTERM");
   }
+});
+
+test("caddy block: a JSON access log records User-Agent, status and client address of every request (bot visits are checkable)", { skip: !has("caddy") }, async () => {
+  const t = tmp("caddylog");
+  const web = join(t, "web");
+  mkdirSync(web, { recursive: true });
+  writeFileSync(join(web, "index.html"), "home");
+  const port = await freePort();
+  const { caddy, logRef } = startCaddy(t, web, port);
+  try {
+    let up = false;
+    for (let i = 0; i < 50 && !up; i++) {
+      try { await get(port, "/"); up = true; } catch { await new Promise((r) => setTimeout(r, 100)); }
+    }
+    assert.ok(up, `caddy did not start:\n${logRef.text}`);
+    const ua = "Mozilla/5.0 (compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)";
+    assert.equal((await get(port, "/", { "User-Agent": ua })).status, 200);
+    await get(port, "/", { "User-Agent": "Mozilla/5.0 (compatible; bingbot/2.0)" });
+    let lines = [];
+    for (let i = 0; i < 30 && lines.length < 2; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      lines = existsSync(join(t, "access.log"))
+        ? readFileSync(join(t, "access.log"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l))
+        : [];
+    }
+    const uaOf = (l) => (l.request?.headers?.["User-Agent"] || []).join(" ");
+    const bot = lines.find((l) => uaOf(l).includes("OAI-SearchBot"));
+    assert.ok(bot, `no OAI-SearchBot line in the access log:\n${JSON.stringify(lines)}`);
+    assert.equal(bot.status, 200);
+    assert.equal(bot.request.uri, "/");
+    assert.equal(bot.request.remote_ip, "127.0.0.1");
+    assert.ok(lines.some((l) => uaOf(l).includes("bingbot")));
+  } finally {
+    caddy.kill("SIGTERM");
+  }
+  // rotation is configured: the log must not grow forever on a small server
+  const block = readFileSync(join(ROOT, "deploy", "caddy-blog-block.txt"), "utf8");
+  assert.match(block, /roll_size\s+\S+/);
+  assert.match(block, /roll_keep\s+\d+/);
 });
 
 test("swap-caddy-block: swaps the block named by its own site line, not a www. look-alike", { skip: !has("python3") }, async () => {

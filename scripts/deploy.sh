@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # deploy.sh — ship build/ to the blog webroot, then tell the search engines:
-# IndexNow ping (Yandex + Bing) and a Google Search Console sitemap submit.
+# IndexNow notification (Yandex + Bing) and a Google Search Console sitemap submit.
 # Order: dry-run deletion guard → backup → rsync --delete → chown → IndexNow → GSC.
 #
 # Usage:
-#   npm run build && scripts/deploy.sh                    # deploy + IndexNow all sitemap URLs
-#   scripts/deploy.sh https://<domain.site>/guides/<slug>/   # ...only changed URLs
+#   npm run build && scripts/deploy.sh                    # deploy + IndexNow ONLY the pages whose content changed
+#   scripts/deploy.sh https://<domain.site>/guides/<slug>/   # ...exactly these URLs instead
+#   scripts/deploy.sh --all                               # ...every sitemap URL (explicit, use rarely)
+# «Changed» = the files the dry-run below says differ from the live webroot (rsync
+# --checksum, i.e. by content). The live webroot IS the previous state, so no manifest
+# is stored anywhere. On a first deploy (no webroot yet) there is no previous state:
+# nothing is submitted automatically and the full-submission command is printed.
 # Env: BLOG_HOST overrides the ssh target (default = Thrall reaches the public IP;
 #      from Mac mini use the Tailscale address: BLOG_HOST=root@100.116.42.100).
 #      BLOG_WEBROOT overrides the remote webroot — white-label deploys (M1 step 5)
@@ -37,6 +42,8 @@ echo "[deploy] dry-run: checking what --delete would remove on prod"
 # fail-closed: an ssh/rsync error aborts here (set -e) instead of reading as «no deletions»
 PLAN="$(rsync -azn --delete --checksum --out-format='%i %n' -e "ssh -o ConnectTimeout=15" \
   "$ROOT/build/" "$HOST:$WEBROOT/")"
+# The same plan tells IndexNow what changed (see the header): it is only trusted when
+# the webroot turns out to exist (checked below) — otherwise every file looks «new».
 DELETES="$(printf '%s\n' "$PLAN" | grep '^\*deleting' || true)"
 if [ -n "$DELETES" ]; then
   echo "[deploy] rsync --delete would remove these prod files:" >&2
@@ -55,9 +62,11 @@ TS="$(date +%Y%m%d-%H%M%S)"
 # fail-closed: «absent» must be a positive answer from the remote shell. A bare
 # `test -d` exit status can't tell a missing dir (1) from an ssh error (255).
 WEBROOT_RC=0
+PREVIOUS_STATE_KNOWN=0
 WEBROOT_STATE="$("${SSH[@]}" "if [ -d \"$WEBROOT\" ]; then echo present; elif [ -e \"$WEBROOT\" ]; then echo not-a-dir; else echo absent; fi")" || WEBROOT_RC=$?
 case "$WEBROOT_RC:$WEBROOT_STATE" in
   0:present)
+    PREVIOUS_STATE_KNOWN=1
     echo "[deploy] backup prod webroot → /root/$WEBROOT_NAME.bak.$TS.tgz"
     "${SSH[@]}" "tar czf \"/root/$WEBROOT_NAME.bak.$TS.tgz\" -C \"$WEBROOT_DIR\" \"$WEBROOT_NAME\""
     ;;
@@ -71,15 +80,41 @@ case "$WEBROOT_RC:$WEBROOT_STATE" in
 esac
 
 echo "[deploy] rsync build/ → $HOST:$WEBROOT"
-rsync -az --delete -e "ssh -o ConnectTimeout=15" "$ROOT/build/" "$HOST:$WEBROOT/"
+# --checksum here too: the dry-run plan above decides by content, so the real transfer
+# must decide the same way — otherwise a page with the same size and mtime but new
+# content is in the plan (and gets submitted to IndexNow) yet is never copied.
+rsync -az --delete --checksum -e "ssh -o ConnectTimeout=15" "$ROOT/build/" "$HOST:$WEBROOT/"
 "${SSH[@]}" "chown -R www-data:www-data \"$WEBROOT\""
 
 # The site is live from here on: the search pings are independent and non-fatal.
 # Each one's result is captured and reported, so an IndexNow error neither skips
 # the GSC submit nor fails a finished deploy — but it is never silent.
-echo "[deploy] IndexNow ping (Yandex + Bing)"
+echo "[deploy] IndexNow notification (Yandex + Bing): changed pages only"
 INDEXNOW_RC=0
-node "$ROOT/scripts/indexnow-submit.mjs" "$@" || INDEXNOW_RC=$?
+PLAN_FILE=""
+# The temp file is removed on any exit; a failing cleanup only warns.
+cleanup_plan_file() {
+  if [ -n "$PLAN_FILE" ] && [ -e "$PLAN_FILE" ]; then
+    rm -f "$PLAN_FILE" || echo "[deploy] WARN: could not remove temp file $PLAN_FILE" >&2
+  fi
+}
+trap cleanup_plan_file EXIT
+if [ "$#" -gt 0 ]; then
+  # explicit URLs or --all: the caller decided, pass them through untouched
+  node "$ROOT/scripts/indexnow-submit.mjs" "$@" || INDEXNOW_RC=$?
+elif [ "$PREVIOUS_STATE_KNOWN" = "1" ]; then
+  # The site is live: a temp-file problem must warn and continue, never abort (set -e).
+  if PLAN_FILE="$(mktemp)" && [ -n "$PLAN_FILE" ] && printf '%s\n' "$PLAN" > "$PLAN_FILE"; then
+    node "$ROOT/scripts/indexnow-submit.mjs" --rsync-plan "$PLAN_FILE" || INDEXNOW_RC=$?
+  else
+    INDEXNOW_RC=1
+    echo "[deploy] WARN: cannot write the temporary change-list file — IndexNow skipped; the site itself is already live" >&2
+  fi
+else
+  echo "[deploy] no previous deploy state (first deploy) — nothing submitted automatically."
+  echo "[deploy] To submit the whole site once: node scripts/indexnow-submit.mjs --all"
+  node "$ROOT/scripts/indexnow-submit.mjs" || INDEXNOW_RC=$?
+fi
 
 # Google has no IndexNow: the sitemap (honest lastmod) submitted to Search Console
 # is its recrawl signal. A missing key or a permission error prints the exact
@@ -88,11 +123,11 @@ echo "[deploy] Google Search Console: submit sitemap"
 GSC_RC=0
 node "$ROOT/scripts/gsc-submit-sitemap.mjs" || GSC_RC=$?
 
-if [ "$INDEXNOW_RC" -eq 0 ]; then
-  echo "[deploy] IndexNow: OK"
-else
-  echo "[deploy] WARN: IndexNow ping did not complete (exit $INDEXNOW_RC, see the lines above) — rerun scripts/indexnow-submit.mjs" >&2
-fi
+case "$INDEXNOW_RC" in
+  0) echo "[deploy] IndexNow: OK (a notification, not a guarantee of indexing)" ;;
+  75) echo "[deploy] WARN: IndexNow is rate-limited (HTTP 429, exit 75) — wait the Retry-After time printed above, then rerun scripts/indexnow-submit.mjs with the changed URLs" >&2 ;;
+  *) echo "[deploy] WARN: IndexNow notification did not complete (exit $INDEXNOW_RC, see the lines above) — rerun scripts/indexnow-submit.mjs" >&2 ;;
+esac
 case "$GSC_RC" in
   0) echo "[deploy] GSC: OK" ;;
   2) echo "[deploy] GSC submit skipped (no analytics.gscProperty / service-account key configured)" ;;
